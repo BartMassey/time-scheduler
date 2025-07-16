@@ -5,4 +5,6 @@ edition = "2024"
 
 [dependencies]
 fastrand = "2.3.0"
+modern-multiset = "1.0.0"
 ndarray = "0.16.1"
+ordered-float = "5.0.0"

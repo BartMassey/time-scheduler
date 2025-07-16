@@ -2,7 +2,10 @@ use std::collections::HashSet;
 use std::iter::from_fn as iter_fn;
 
 use fastrand::usize as random_usize;
+use modern_multiset::HashMultiSet;
 use ndarray::{Array2, Axis};
+use ordered_float::NotNan;
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Activity {
@@ -51,13 +54,76 @@ impl Schedule {
             }
         }
         
-        let unscheduled = acts.into_iter().collect();
+        let unscheduled = acts.collect();
 
         Self { slots, unscheduled }
+    }
+
+    fn penalty(&self) -> f32 {
+        let mut penalty = 0.0;
+
+        let missed_out = self.unscheduled
+            .iter()
+            .map(|a| 1.0 * a.priority as f32)
+            .sum::<f32>();
+        penalty += missed_out;
+
+        let nempty = self.slots
+            .iter()
+            .filter(|&a| a.is_none())
+            .count();
+        penalty += 10_000.0 * nempty as f32;
+
+        let mut topic_conflicts = 0.0;
+        let mut priority_conflicts = 0.0;
+        for r in self.slots.axis_iter(Axis(1)) {
+            let mut vars: Vec<_> = r
+                .iter()
+                .filter_map(|a| a.as_ref())
+                .map(|a| {
+                    let p = a.priority as f32;
+                    p * p
+                })
+                .map(|p| NotNan::new(p).unwrap())
+                .collect();
+            vars.sort();
+            let big3 = vars
+                .into_iter()
+                .rev()
+                .take(3)
+                .map(NotNan::into_inner)
+                .sum::<f32>();
+            priority_conflicts += 1.0 * f32::sqrt(big3);
+            
+            let h: HashMultiSet<_> = r
+                .iter()
+                .filter_map(|a| a.as_ref())
+                .map(|a| a.topic)
+                .collect();
+            let tc = h
+                .distinct_elements()
+                .map(|t| {
+                    let c = h.count_of(t) as f32;
+                    c * c
+                })
+                .sum::<f32>();
+            topic_conflicts += 10.0 * tc;
+        }
+        penalty += priority_conflicts + topic_conflicts;
+
+        let mut lateness = 0.0;
+        for (t, c) in self.slots.axis_iter(Axis(0)).enumerate() {
+            for a in c.into_iter().flatten() {
+                lateness += 0.1 * a.priority as f32 * t as f32;
+            }
+        }
+        penalty += lateness;
+
+        penalty
     }
 }
 
 fn main() {
-    let _schedule = Schedule::new(3, 2, Activity::randoms(8));
-    println!("{_schedule:?}");
+    let schedule = Schedule::new(3, 2, Activity::randoms(8));
+    println!("{}", schedule.penalty());
 }

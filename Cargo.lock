@@ -25,6 +25,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "modern-multiset"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "873d30a51d5c85bc9704dfdf40cce08ea63b94aecef3eb767860256cd5c58d91"
+
+[[package]]
 name = "ndarray"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -67,6 +73,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ordered-float"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2c1f9f56e534ac6a9b8a4600bdf0f530fb393b5f393e7b4d03489c3cf0c3f01"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "portable-atomic"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -92,5 +107,7 @@ name = "time-scheduler"
 version = "0.1.0"
 dependencies = [
  "fastrand",
+ "modern-multiset",
  "ndarray",
+ "ordered-float",
 ]
