@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::iter::from_fn as iter_fn;
 
 use clap::Parser;
@@ -45,7 +44,7 @@ impl Activity {
 #[derive(Debug)]
 struct Schedule {
     slots: Array2<Option<Activity>>,
-    unscheduled: HashSet<Activity>,
+    unscheduled: Vec<Option<Activity>>,
 }
 
 impl Schedule {
@@ -64,7 +63,7 @@ impl Schedule {
             }
         }
         
-        let unscheduled = acts.collect();
+        let unscheduled = acts.map(Some).collect();
 
         Self { slots, unscheduled }
     }
@@ -74,6 +73,7 @@ impl Schedule {
 
         let missed_out = self.unscheduled
             .iter()
+            .flatten()
             .map(|a| 1.0 * a.priority as f32)
             .sum::<f32>();
         penalty += missed_out;
@@ -133,38 +133,25 @@ impl Schedule {
     }
 
     fn improve(&mut self) {
-        let nextra = self.unscheduled.len();
-
-        let mut slots = self.slots.clone();
-        let slot_locs = slots.iter_mut();
-        let mut unscheduled_list: Vec<_> = self.unscheduled
-            .iter()
-            .cloned()
-            .map(Some)
-            .collect();
-        let extra_locs = unscheduled_list.iter_mut();
-        let mut locs: Vec<_> = slot_locs.chain(extra_locs).collect();
+        let slot_locs = self.slots.iter_mut();
+        let unscheduled_locs = self.unscheduled.iter_mut();
+        let mut locs: Vec<_> = slot_locs.chain(unscheduled_locs).collect();
         
         let ntotal = locs.len();
         let nswaps = 2 * ntotal * ntotal;
+
+        let mut swap = |s1: usize, s2: usize| {
+            let y1 = locs[s1].take();
+            let y2 = locs[s2].take();
+            *locs[s1] = y2;
+            *locs[s2] = y1;
+        };
+
         for _ in 0..nswaps {
             let s1 = random_usize(0..ntotal);
             let s2 = random_usize(0..ntotal);
-            locs.swap(s1, s2);
+            swap(s1, s2);
         }
-
-        let (new_slots, new_unscheduled) = locs.split_at_mut(ntotal - nextra);
-
-        let dests = self.slots.iter_mut();
-        let sources = new_slots.iter();
-        for (d, s) in dests.zip(sources) {
-            *d = (*s).clone();
-        }
-
-        self.unscheduled = new_unscheduled
-            .iter()
-            .filter_map(|u| (*u).clone())
-            .collect();
     }
 }
 
