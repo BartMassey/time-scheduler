@@ -1,11 +1,21 @@
 use std::collections::HashSet;
 use std::iter::from_fn as iter_fn;
 
+use clap::Parser;
 use fastrand::usize as random_usize;
 use modern_multiset::HashMultiSet;
 use ndarray::{Array2, Axis};
 use ordered_float::NotNan;
 
+#[derive(Parser)]
+struct Args {
+    #[arg(name="places", help="Number of places")]
+    nplaces: usize,
+    #[arg(name="timeslots", help="Number of time slots")]
+    ntimes: usize,
+    #[arg(name="activities", help="Number of activities")]
+    nactivities: usize,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Activity {
@@ -124,6 +134,11 @@ impl Schedule {
 }
 
 fn main() {
-    let schedule = Schedule::new(3, 2, Activity::randoms(8));
+    let args = Args::parse();
+    let schedule = Schedule::new(
+        args.nplaces,
+        args.ntimes,
+        Activity::randoms(args.nactivities),
+    );
     println!("{}", schedule.penalty());
 }
