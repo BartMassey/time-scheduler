@@ -5,6 +5,7 @@ use fastrand::usize as random_usize;
 use modern_multiset::HashMultiSet;
 use ndarray::{Array2, Axis};
 use ordered_float::NotNan;
+use slice_store::SliceStore;
 
 #[derive(Parser)]
 struct Args {
@@ -135,23 +136,34 @@ impl Schedule {
     fn improve(&mut self) {
         let slot_locs = self.slots.iter_mut();
         let unscheduled_locs = self.unscheduled.iter_mut();
-        let mut locs: Vec<_> = slot_locs.chain(unscheduled_locs).collect();
+        let locs: Vec<_> = slot_locs.chain(unscheduled_locs).collect();
         
         let ntotal = locs.len();
         let nswaps = 2 * ntotal * ntotal;
 
-        fn swap(locs: &mut [&mut Option<Activity>], s1: usize, s2: usize) {
+        fn swap(locs: &[&mut Option<Activity>], s1: usize, s2: usize) {
             let y1 = locs[s1].take();
             let y2 = locs[s2].take();
-            *(locs[s1]) = y2;
-            *(locs[s2]) = y1;
+            // # Safety
+            // At the time of these `store()` calls, locs
+            // is not being shared with anyone else.
+            // This meets the prerequisite for safe `store()`.
+            // # Need
+            // We need to treat slots and unscheduled locs
+            // uniformly for algorithmic simplicity and performance.
+            // Further, we need to not do a bunch of gratuitous moves in every
+            // search step to get any decent performance.
+            unsafe {
+                locs.store(s1, y2);
+                locs.store(s2, y1);
+            }
         }
 
         let mut penalty = self.penalty();
         for _ in 0..nswaps {
             let s1 = random_usize(0..ntotal);
             let s2 = random_usize(0..ntotal);
-            swap(&mut locs, s1, s2);
+            swap(&locs, s1, s2);
             let new_penalty = self.penalty();
             if penalty <= self.penalty() {
                 penalty = new_penalty;

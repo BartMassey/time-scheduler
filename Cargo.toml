@@ -8,6 +8,7 @@ fastrand = "2.3.0"
 modern-multiset = "1.0.0"
 ndarray = "0.16.1"
 ordered-float = "5.0.0"
+slice-store = { git = "https://github.com/BartMassey/slice-store", version = "0.1.0" }
 
 [dependencies.clap]
 version = "4.5.41"
