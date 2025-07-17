@@ -131,14 +131,51 @@ impl Schedule {
 
         penalty
     }
+
+    fn improve(&mut self) {
+        let nextra = self.unscheduled.len();
+
+        let mut slots = self.slots.clone();
+        let slot_locs = slots.iter_mut();
+        let mut unscheduled_list: Vec<_> = self.unscheduled
+            .iter()
+            .cloned()
+            .map(Some)
+            .collect();
+        let extra_locs = unscheduled_list.iter_mut();
+        let mut locs: Vec<_> = slot_locs.chain(extra_locs).collect();
+        
+        let ntotal = locs.len();
+        let nswaps = 2 * ntotal * ntotal;
+        for _ in 0..nswaps {
+            let s1 = random_usize(0..ntotal);
+            let s2 = random_usize(0..ntotal);
+            locs.swap(s1, s2);
+        }
+
+        let (new_slots, new_unscheduled) = locs.split_at_mut(ntotal - nextra);
+
+        let dests = self.slots.iter_mut();
+        let sources = new_slots.iter();
+        for (d, s) in dests.zip(sources) {
+            *d = (*s).clone();
+        }
+
+        self.unscheduled = new_unscheduled
+            .iter()
+            .filter_map(|u| (*u).clone())
+            .collect();
+    }
 }
 
 fn main() {
     let args = Args::parse();
-    let schedule = Schedule::new(
+    let mut schedule = Schedule::new(
         args.nplaces,
         args.ntimes,
         Activity::randoms(args.nactivities),
     );
+    println!("{}", schedule.penalty());
+    schedule.improve();
     println!("{}", schedule.penalty());
 }
