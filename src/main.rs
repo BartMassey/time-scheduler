@@ -140,17 +140,24 @@ impl Schedule {
         let ntotal = locs.len();
         let nswaps = 2 * ntotal * ntotal;
 
-        let mut swap = |s1: usize, s2: usize| {
+        fn swap(locs: &mut [&mut Option<Activity>], s1: usize, s2: usize) {
             let y1 = locs[s1].take();
             let y2 = locs[s2].take();
-            *locs[s1] = y2;
-            *locs[s2] = y1;
-        };
+            *(locs[s1]) = y2;
+            *(locs[s2]) = y1;
+        }
 
+        let mut penalty = self.penalty();
         for _ in 0..nswaps {
             let s1 = random_usize(0..ntotal);
             let s2 = random_usize(0..ntotal);
-            swap(s1, s2);
+            swap(&mut locs, s1, s2);
+            let new_penalty = self.penalty();
+            if penalty <= self.penalty() {
+                penalty = new_penalty;
+            } else {
+                swap(&mut locs, s2, s1);
+            }
         }
     }
 }
