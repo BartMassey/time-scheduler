@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::iter::from_fn as iter_fn;
 
 use clap::Parser;
@@ -135,23 +136,26 @@ impl Schedule {
     fn improve(&mut self) {
         let slot_locs = self.slots.iter_mut();
         let unscheduled_locs = self.unscheduled.iter_mut();
-        let mut locs: Vec<_> = slot_locs.chain(unscheduled_locs).collect();
+        let mut locs: Vec<_> = slot_locs
+            .chain(unscheduled_locs)
+            .map(RefCell::new)
+            .collect();
         
         let ntotal = locs.len();
         let nswaps = 2 * ntotal * ntotal;
 
-        fn swap(locs: &mut [&mut Option<Activity>], s1: usize, s2: usize) {
-            let y1 = locs[s1].take();
-            let y2 = locs[s2].take();
-            *(locs[s1]) = y2;
-            *(locs[s2]) = y1;
+        fn swap(locs: &[RefCell<&mut Option<Activity>>], s1: usize, s2: usize) {
+            let x1 = locs[s1].borrow_mut().take();
+            let x2 = locs[s2].borrow_mut().take();
+            **(locs[s1].borrow_mut()) = x2;
+            **(locs[s2].borrow_mut()) = x1;
         }
 
         let mut penalty = self.penalty();
         for _ in 0..nswaps {
             let s1 = random_usize(0..ntotal);
             let s2 = random_usize(0..ntotal);
-            swap(&mut locs, s1, s2);
+            swap(&locs, s1, s2);
             let new_penalty = self.penalty();
             if penalty <= self.penalty() {
                 penalty = new_penalty;
