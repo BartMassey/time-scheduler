@@ -169,14 +169,22 @@ impl Schedule {
 
         let mut penalty = get_penalty!(self_p);
         for _ in 0..nswaps {
-            let s1 = random_usize(0..ntotal);
-            let s2 = random_usize(0..ntotal);
-            swap(&mut locs, s1, s2);
-            let new_penalty = get_penalty!(self_p);
-            if penalty > new_penalty {
-                penalty = new_penalty;
-            } else {
-                swap(&mut locs, s2, s1);
+            let mut cur_best = (0, 0);
+            let mut cur_penalty = penalty;
+            for i in 0..ntotal {
+                for j in i + 1..ntotal {
+                    swap(&mut locs, i, j);
+                    let new_penalty = get_penalty!(self_p);
+                    if cur_penalty > new_penalty {
+                        cur_best = (i, j);
+                        cur_penalty = new_penalty;
+                    }
+                    swap(&mut locs, j, i);
+                }
+            }
+            if cur_penalty < penalty {
+                swap(&mut locs, cur_best.0, cur_best.1);
+                penalty = cur_penalty;
             }
         }
     }
