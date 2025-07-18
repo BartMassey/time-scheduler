@@ -8,6 +8,8 @@ use ordered_float::NotNan;
 
 #[derive(Parser)]
 struct Args {
+    #[arg(short='n', long="nswaps", help="Number of swaps")]
+    nswaps: Option<usize>,
     #[arg(name="places", help="Number of places")]
     nplaces: usize,
     #[arg(name="timeslots", help="Number of time slots")]
@@ -132,7 +134,7 @@ impl Schedule {
         penalty
     }
 
-    fn improve(&mut self) {
+    fn improve(&mut self, nswaps: Option<usize>) {
         let self_p = self as *const Schedule;
 
         let slot_locs = self.slots.iter_mut();
@@ -140,7 +142,7 @@ impl Schedule {
         let mut locs: Vec<_> = slot_locs.chain(unscheduled_locs).collect();
         
         let ntotal = locs.len();
-        let nswaps = 2 * ntotal * ntotal;
+        let nswaps = nswaps.unwrap_or(2 * usize::pow(ntotal, 3));
 
         fn swap(locs: &mut [&mut Option<Activity>], s1: usize, s2: usize) {
             let y1 = locs[s1].take();
@@ -188,6 +190,6 @@ fn main() {
         Activity::randoms(args.nactivities),
     );
     println!("{}", schedule.penalty());
-    schedule.improve();
+    schedule.improve(args.nswaps);
     println!("{}", schedule.penalty());
 }
