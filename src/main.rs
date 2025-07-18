@@ -153,29 +153,27 @@ impl Schedule {
             *(locs[s2]) = y1;
         }
 
-        // # Safety
-        // There can be no mutation of the underlying objects
-        // by penalty(), so the state can be safely used.
-        // # Need
-        // I know of no way to avoid this hack short of reconstructing
-        // the schedule at every search step. This would incur
-        // unacceptable performance.
-        macro_rules! get_penalty {
-            ($self_p:expr) => {
-                unsafe {
-                    let r = &*$self_p;
-                    r.penalty()
-                }
-            };
-        }
+        let get_penalty = || {
+            // # Safety
+            // There can be no mutation of the underlying objects
+            // by penalty(), so the state can be safely used.
+            // # Need
+            // I know of no way to avoid this hack short of reconstructing
+            // the schedule at every search step. This would incur
+            // unacceptable performance.
+            unsafe {
+                let r = &*self_p;
+                r.penalty()
+            }
+        };
 
-        let mut penalty = get_penalty!(self_p);
+        let mut penalty = get_penalty();
         for _ in 0..nswaps {
             if noise && random_usize(0..2) == 0 {
                 let i = random_usize(0..ntotal);
                 let j = random_usize(0..ntotal);
                 swap(&mut locs, i, j);
-                let new_penalty = get_penalty!(self_p);
+                let new_penalty = get_penalty();
                 if new_penalty < penalty {
                     penalty = new_penalty;
                 } else {
@@ -189,7 +187,7 @@ impl Schedule {
             for i in 0..ntotal {
                 for j in i + 1..ntotal {
                     swap(&mut locs, i, j);
-                    let new_penalty = get_penalty!(self_p);
+                    let new_penalty = get_penalty();
                     if cur_penalty > new_penalty {
                         cur_best = (i, j);
                         cur_penalty = new_penalty;
