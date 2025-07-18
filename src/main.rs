@@ -8,8 +8,10 @@ use ordered_float::NotNan;
 
 #[derive(Parser)]
 struct Args {
-    #[arg(short='n', long="nswaps", help="Number of swaps")]
+    #[arg(short='s', long="nswaps", help="Number of swaps")]
     nswaps: Option<usize>,
+    #[arg(short='n', long="noise", help="Use noise moves")]
+    noise: bool,
     #[arg(name="places", help="Number of places")]
     nplaces: usize,
     #[arg(name="timeslots", help="Number of time slots")]
@@ -134,7 +136,7 @@ impl Schedule {
         penalty
     }
 
-    fn improve(&mut self, nswaps: Option<usize>) {
+    fn improve(&mut self, nswaps: Option<usize>, noise: bool) {
         let self_p = self as *const Schedule;
 
         let slot_locs = self.slots.iter_mut();
@@ -169,6 +171,19 @@ impl Schedule {
 
         let mut penalty = get_penalty!(self_p);
         for _ in 0..nswaps {
+            if noise && random_usize(0..2) == 0 {
+                let i = random_usize(0..ntotal);
+                let j = random_usize(0..ntotal);
+                swap(&mut locs, i, j);
+                let new_penalty = get_penalty!(self_p);
+                if new_penalty < penalty {
+                    penalty = new_penalty;
+                } else {
+                    swap(&mut locs, i, j);
+                }
+                continue;
+            }
+
             let mut cur_best = (0, 0);
             let mut cur_penalty = penalty;
             for i in 0..ntotal {
@@ -198,6 +213,6 @@ fn main() {
         Activity::randoms(args.nactivities),
     );
     println!("{}", schedule.penalty());
-    schedule.improve(args.nswaps);
+    schedule.improve(args.nswaps, args.noise);
     println!("{}", schedule.penalty());
 }
