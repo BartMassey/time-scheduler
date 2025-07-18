@@ -41,7 +41,7 @@ impl Activity {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Schedule {
     slots: Array2<Option<Activity>>,
     unscheduled: Vec<Option<Activity>>,
@@ -133,6 +133,8 @@ impl Schedule {
     }
 
     fn improve(&mut self) {
+        let self_p = self as *const Schedule;
+
         let slot_locs = self.slots.iter_mut();
         let unscheduled_locs = self.unscheduled.iter_mut();
         let mut locs: Vec<_> = slot_locs.chain(unscheduled_locs).collect();
@@ -147,13 +149,29 @@ impl Schedule {
             *(locs[s2]) = y1;
         }
 
-        let mut penalty = self.penalty();
+        // # Safety
+        // There can be no mutation of the underlying objects
+        // by penalty(), so the state can be safely used.
+        // # Need
+        // I know of no way to avoid this hack short of reconstructing
+        // the schedule at every search step. This would incur
+        // unacceptable performance.
+        macro_rules! get_penalty {
+            ($self_p:expr) => {
+                unsafe {
+                    let r = &*$self_p;
+                    r.penalty()
+                }
+            };
+        }
+
+        let mut penalty = get_penalty!(self_p);
         for _ in 0..nswaps {
             let s1 = random_usize(0..ntotal);
             let s2 = random_usize(0..ntotal);
             swap(&mut locs, s1, s2);
-            let new_penalty = self.penalty();
-            if penalty <= self.penalty() {
+            let new_penalty = get_penalty!(self_p);
+            if penalty > new_penalty {
                 penalty = new_penalty;
             } else {
                 swap(&mut locs, s2, s1);
