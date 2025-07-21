@@ -153,7 +153,7 @@ impl Schedule {
             let s2 = random_usize(0..ntotal);
             swap(&mut locs, s1, s2);
             let new_penalty = self.penalty();
-            if penalty <= self.penalty() {
+            if new_penalty < penalty {
                 penalty = new_penalty;
             } else {
                 swap(&mut locs, s2, s1);
