@@ -123,47 +123,55 @@ impl Schedule {
     }
 
     fn improve(&mut self, nswaps: Option<usize>, noise: bool) {
-        let self_p = self as *const Schedule;
-
-        let slot_locs = self.slots.iter_mut();
-        let unscheduled_locs = self.unscheduled.iter_mut();
-        let mut locs: Vec<_> = slot_locs.chain(unscheduled_locs).collect();
-        
-        let ntotal = locs.len();
+        let (nplaces, ntimes) = self.slots.dim();
+        let nunscheduled = self.unscheduled.len();
+        let ntotal = nplaces * ntimes + nunscheduled;
         let nswaps = nswaps.unwrap_or(2 * usize::pow(ntotal, 3));
-
-        fn swap(locs: &mut [&mut Option<Activity>], s1: usize, s2: usize) {
-            let y1 = locs[s1].take();
-            let y2 = locs[s2].take();
-            *(locs[s1]) = y2;
-            *(locs[s2]) = y1;
+        
+        #[derive(Clone, Copy)]
+        enum Loc {
+            S(usize, usize),      // (place, time)
+            U(usize),             // index in unscheduled vec
         }
-
-        let get_penalty = || {
-            // # Safety
-            // There can be no mutation of the underlying objects
-            // by penalty(), so the state can be safely used.
-            // # Need
-            // I know of no way to avoid this hack short of reconstructing
-            // the schedule at every search step. This would incur
-            // unacceptable performance.
-            unsafe {
-                let r = &*self_p;
-                r.penalty()
+        use Loc::*;
+        
+        fn swap_locations(schedule: &mut Schedule, loc1: Loc, loc2: Loc) {
+            let activity1 = match loc1 {
+                S(p, t) => schedule.slots[(p, t)].take(),
+                U(i) => schedule.unscheduled[i].take(),
+            };
+            let activity2 = match loc2 {
+                S(p, t) => schedule.slots[(p, t)].take(),
+                U(i) => schedule.unscheduled[i].take(),
+            };
+            
+            match loc1 {
+                S(p, t) => schedule.slots[(p, t)] = activity2,
+                U(i) => schedule.unscheduled[i] = activity2,
             }
-        };
-
-        let mut penalty = get_penalty();
+            match loc2 {
+                S(p, t) => schedule.slots[(p, t)] = activity1,
+                U(i) => schedule.unscheduled[i] = activity1,
+            }
+        }
+        
+        let all_locations: Vec<Loc> = (0..nplaces)
+            .flat_map(|p| (0..ntimes).map(move |t| S(p, t)))
+            .chain((0..nunscheduled).map(U))
+            .collect();
+        
+        let mut penalty = self.penalty();
+        
         for _ in 0..nswaps {
             if noise && random_usize(0..2) == 0 {
                 let i = random_usize(0..ntotal);
                 let j = random_usize(0..ntotal);
-                swap(&mut locs, i, j);
-                let new_penalty = get_penalty();
+                swap_locations(self, all_locations[i], all_locations[j]);
+                let new_penalty = self.penalty();
                 if new_penalty < penalty {
                     penalty = new_penalty;
                 } else {
-                    swap(&mut locs, i, j);
+                    swap_locations(self, all_locations[j], all_locations[i]);
                 }
                 continue;
             }
@@ -172,17 +180,17 @@ impl Schedule {
             let mut cur_penalty = penalty;
             for i in 0..ntotal {
                 for j in i + 1..ntotal {
-                    swap(&mut locs, i, j);
-                    let new_penalty = get_penalty();
+                    swap_locations(self, all_locations[i], all_locations[j]);
+                    let new_penalty = self.penalty();
                     if cur_penalty > new_penalty {
                         cur_best = (i, j);
                         cur_penalty = new_penalty;
                     }
-                    swap(&mut locs, j, i);
+                    swap_locations(self, all_locations[j], all_locations[i]);
                 }
             }
             if cur_penalty < penalty {
-                swap(&mut locs, cur_best.0, cur_best.1);
+                swap_locations(self, all_locations[cur_best.0], all_locations[cur_best.1]);
                 penalty = cur_penalty;
             }
         }
