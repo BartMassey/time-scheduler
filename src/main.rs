@@ -1,10 +1,11 @@
-use std::iter::from_fn as iter_fn;
+use std::fs;
 
 use clap::Parser;
 use fastrand::usize as random_usize;
 use modern_multiset::HashMultiSet;
 use ndarray::{Array2, Axis};
 use ordered_float::NotNan;
+use serde::{Deserialize, Serialize};
 
 #[derive(Parser)]
 struct Args {
@@ -12,37 +13,22 @@ struct Args {
     nswaps: Option<usize>,
     #[arg(short='n', long="noise", help="Use noise moves")]
     noise: bool,
-    #[arg(name="places", help="Number of places")]
-    nplaces: usize,
-    #[arg(name="timeslots", help="Number of time slots")]
-    ntimes: usize,
-    #[arg(name="activities", help="Number of activities")]
-    nactivities: usize,
+    #[arg(short='i', long="instances", help="JSON file containing problem instances")]
+    instances_file: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Activity {
-    priority: usize,
-    topic: usize,
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Activity {
+    pub priority: usize,
+    pub topic: usize,
 }
 
-impl Activity {
-    fn random() -> Self {
-        let priority = random_usize(0..=100);
-        let topic = random_usize(1..=3);
-        Self { priority, topic }
-    }
-
-    fn randoms(mut n: usize) -> impl Iterator<Item = Self> {
-        iter_fn(move || {
-            if n > 0 {
-                n -= 1;
-                Some(Self::random())
-            } else {
-                None
-            }
-        })
-    }
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SchedulingInstance {
+    pub id: String,
+    pub nplaces: usize,
+    pub ntimes: usize,
+    pub activities: Vec<Activity>,
 }
 
 #[derive(Debug, Clone)]
@@ -203,14 +189,29 @@ impl Schedule {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let mut schedule = Schedule::new(
-        args.nplaces,
-        args.ntimes,
-        Activity::randoms(args.nactivities),
-    );
-    println!("{}", schedule.penalty());
-    schedule.improve(args.nswaps, args.noise);
-    println!("{}", schedule.penalty());
+    
+    let file_contents = fs::read_to_string(&args.instances_file)?;
+    let instances: Vec<SchedulingInstance> = serde_json::from_str(&file_contents)?;
+    
+    for instance in instances {
+        println!("Processing instance: {}", instance.id);
+        let mut schedule = Schedule::new(
+            instance.nplaces,
+            instance.ntimes,
+            instance.activities.into_iter(),
+        );
+        
+        let initial_penalty = schedule.penalty();
+        schedule.improve(args.nswaps, args.noise);
+        let final_penalty = schedule.penalty();
+        
+        println!("  Initial penalty: {:.2}", initial_penalty);
+        println!("  Final penalty:   {:.2}", final_penalty);
+        println!("  Improvement:     {:.2}", initial_penalty - final_penalty);
+        println!();
+    }
+    
+    Ok(())
 }
