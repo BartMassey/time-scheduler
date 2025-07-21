@@ -8,6 +8,10 @@ use ordered_float::NotNan;
 
 #[derive(Parser)]
 struct Args {
+    #[arg(short='s', long="nswaps", help="Number of swaps")]
+    nswaps: Option<usize>,
+    #[arg(short='n', long="noise", help="Use noise moves")]
+    noise: bool,
     #[arg(name="places", help="Number of places")]
     nplaces: usize,
     #[arg(name="timeslots", help="Number of time slots")]
@@ -41,7 +45,7 @@ impl Activity {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Schedule {
     slots: Array2<Option<Activity>>,
     unscheduled: Vec<Option<Activity>>,
@@ -132,13 +136,15 @@ impl Schedule {
         penalty
     }
 
-    fn improve(&mut self) {
+    fn improve(&mut self, nswaps: Option<usize>, noise: bool) {
+        let self_p = self as *const Schedule;
+
         let slot_locs = self.slots.iter_mut();
         let unscheduled_locs = self.unscheduled.iter_mut();
         let mut locs: Vec<_> = slot_locs.chain(unscheduled_locs).collect();
         
         let ntotal = locs.len();
-        let nswaps = 2 * ntotal * ntotal;
+        let nswaps = nswaps.unwrap_or(2 * usize::pow(ntotal, 3));
 
         fn swap(locs: &mut [&mut Option<Activity>], s1: usize, s2: usize) {
             let y1 = locs[s1].take();
@@ -147,16 +153,51 @@ impl Schedule {
             *(locs[s2]) = y1;
         }
 
-        let mut penalty = self.penalty();
+        let get_penalty = || {
+            // # Safety
+            // There can be no mutation of the underlying objects
+            // by penalty(), so the state can be safely used.
+            // # Need
+            // I know of no way to avoid this hack short of reconstructing
+            // the schedule at every search step. This would incur
+            // unacceptable performance.
+            unsafe {
+                let r = &*self_p;
+                r.penalty()
+            }
+        };
+
+        let mut penalty = get_penalty();
         for _ in 0..nswaps {
-            let s1 = random_usize(0..ntotal);
-            let s2 = random_usize(0..ntotal);
-            swap(&mut locs, s1, s2);
-            let new_penalty = self.penalty();
-            if new_penalty < penalty {
-                penalty = new_penalty;
-            } else {
-                swap(&mut locs, s2, s1);
+            if noise && random_usize(0..2) == 0 {
+                let i = random_usize(0..ntotal);
+                let j = random_usize(0..ntotal);
+                swap(&mut locs, i, j);
+                let new_penalty = get_penalty();
+                if new_penalty < penalty {
+                    penalty = new_penalty;
+                } else {
+                    swap(&mut locs, i, j);
+                }
+                continue;
+            }
+
+            let mut cur_best = (0, 0);
+            let mut cur_penalty = penalty;
+            for i in 0..ntotal {
+                for j in i + 1..ntotal {
+                    swap(&mut locs, i, j);
+                    let new_penalty = get_penalty();
+                    if cur_penalty > new_penalty {
+                        cur_best = (i, j);
+                        cur_penalty = new_penalty;
+                    }
+                    swap(&mut locs, j, i);
+                }
+            }
+            if cur_penalty < penalty {
+                swap(&mut locs, cur_best.0, cur_best.1);
+                penalty = cur_penalty;
             }
         }
     }
@@ -170,6 +211,6 @@ fn main() {
         Activity::randoms(args.nactivities),
     );
     println!("{}", schedule.penalty());
-    schedule.improve();
+    schedule.improve(args.nswaps, args.noise);
     println!("{}", schedule.penalty());
 }
