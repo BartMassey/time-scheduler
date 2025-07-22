@@ -6,6 +6,7 @@ use std::str::FromStr;
 use clap::Parser;
 use fastrand::{f64 as random_f64, usize as random_usize};
 use serde::{Deserialize, Serialize};
+use time_scheduler::SchedulingInstance;
 
 #[derive(Debug, Clone)]
 enum Distribution {
@@ -171,13 +172,6 @@ impl Activity {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SchedulingInstance {
-    pub id: String,
-    pub nplaces: usize,
-    pub ntimes: usize,
-    pub activities: Vec<Activity>,
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = Args::parse();
@@ -198,7 +192,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut instances = Vec::new();
     
     for i in 0..args.count {
-        let instance = SchedulingInstance {
+        let instance = SchedulingInstance::<Activity> {
             id: format!("instance_{:03}", i),
             nplaces: args.nplaces,
             ntimes: args.ntimes,

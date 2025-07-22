@@ -2,20 +2,20 @@
 name = "time-scheduler"
 version = "0.1.0"
 edition = "2024"
-default-run = "time-scheduler"
 
 [dependencies]
 fastrand = "2.3.0"
-modern-multiset = "1.0.0"
 ndarray = "0.16.1"
-ordered-float = "5.0.0"
-serde_json = "1.0"
 thiserror = "2.0"
 
 [dependencies.serde]
 version = "1.0"
 features = ["derive"]
 
-[dependencies.clap]
+[dev-dependencies]
+serde_json = "1.0"
+ordered-float = "5.0.0"
+
+[dev-dependencies.clap]
 version = "4.5.41"
 features = ["derive"]

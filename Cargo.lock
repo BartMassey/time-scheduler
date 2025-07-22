@@ -145,12 +145,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
-name = "modern-multiset"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "873d30a51d5c85bc9704dfdf40cce08ea63b94aecef3eb767860256cd5c58d91"
-
-[[package]]
 name = "ndarray"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -327,7 +321,6 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "fastrand",
- "modern-multiset",
  "ndarray",
  "ordered-float",
  "serde",
