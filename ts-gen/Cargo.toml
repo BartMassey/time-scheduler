@@ -2,6 +2,15 @@
 name = "ts-gen"
 version = "0.1.0"
 edition = "2021"
+authors = ["Bart Massey <bart@cs.pdx.edu>"]
+license = "MIT OR Apache-2.0"
+description = "Utility for generating scheduling problem instances with configurable distributions"
+homepage = "https://github.com/BartMassey/time-scheduler"
+repository = "https://github.com/BartMassey/time-scheduler"
+readme = "../README.md"
+keywords = ["scheduling", "instance-generation", "distribution", "benchmark"]
+categories = ["command-line-utilities"]
+publish = false
 
 [[bin]]
 name = "ts-gen"

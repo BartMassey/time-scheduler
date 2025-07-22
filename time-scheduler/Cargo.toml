@@ -2,6 +2,16 @@
 name = "time-scheduler"
 version = "0.1.0"
 edition = "2021"
+authors = ["Bart Massey <bart@cs.pdx.edu>"]
+license = "MIT OR Apache-2.0"
+description = "A flexible library for scheduling activities in time slots with customizable penalty functions"
+homepage = "https://github.com/BartMassey/time-scheduler"
+repository = "https://github.com/BartMassey/time-scheduler"
+documentation = "https://docs.rs/time-scheduler"
+readme = "../README.md"
+keywords = ["scheduling", "optimization", "local-search", "timetabling", "constraint-satisfaction"]
+categories = ["algorithms"]
+publish = false
 
 [dependencies]
 fastrand = { workspace = true }
