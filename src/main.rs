@@ -9,10 +9,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Parser)]
 struct Args {
-    #[arg(short='s', long="nswaps", help="Number of swaps")]
+    #[arg(short='s', long="nswaps", help="Number of swaps per restart")]
     nswaps: Option<usize>,
     #[arg(short='n', long="noise", help="Use noise moves")]
     noise: bool,
+    #[arg(short='r', long="nrestarts", help="Number of restarts (0 = no restarts)")]
+    restarts: Option<usize>,
     #[arg(short='i', long="instances", help="JSON file containing problem instances")]
     instances_file: String,
 }
@@ -122,7 +124,47 @@ impl Schedule {
         penalty
     }
 
-    fn improve(&mut self, nswaps: Option<usize>, noise: bool) {
+    fn reshuffle(&mut self) {
+        // Collect all activities from both slots and unscheduled
+        let mut all_activities = Vec::new();
+        
+        // Collect from slots
+        for slot in self.slots.iter_mut() {
+            if let Some(activity) = slot.take() {
+                all_activities.push(activity);
+            }
+        }
+        
+        // Collect from unscheduled
+        for unscheduled_slot in self.unscheduled.iter_mut() {
+            if let Some(activity) = unscheduled_slot.take() {
+                all_activities.push(activity);
+            }
+        }
+        
+        // Shuffle the activities
+        for i in (1..all_activities.len()).rev() {
+            let j = random_usize(0..=i);
+            all_activities.swap(i, j);
+        }
+        
+        // Redistribute: fill slots first, then unscheduled
+        let mut activity_iter = all_activities.into_iter();
+        
+        for slot in self.slots.iter_mut() {
+            if let Some(activity) = activity_iter.next() {
+                *slot = Some(activity);
+            }
+        }
+        
+        for unscheduled_slot in self.unscheduled.iter_mut() {
+            if let Some(activity) = activity_iter.next() {
+                *unscheduled_slot = Some(activity);
+            }
+        }
+    }
+
+    fn improve_single(&mut self, nswaps: Option<usize>, noise: bool) {
         let (nplaces, ntimes) = self.slots.dim();
         let nunscheduled = self.unscheduled.len();
         let ntotal = nplaces * ntimes + nunscheduled;
@@ -195,6 +237,37 @@ impl Schedule {
             }
         }
     }
+
+    fn improve(&mut self, nswaps: Option<usize>, noise: bool, restarts: Option<usize>) {
+        let num_restarts = restarts.unwrap_or(0);
+        
+        if num_restarts == 0 {
+            // No restarts - run original improve method
+            self.improve_single(nswaps, noise);
+            return;
+        }
+        
+        let mut best_penalty = self.penalty();
+        let mut best_schedule = self.clone();
+        
+        // Run the specified number of restarts
+        for restart_num in 0..=num_restarts {
+            if restart_num > 0 {
+                self.reshuffle();
+            }
+            
+            self.improve_single(nswaps, noise);
+            let current_penalty = self.penalty();
+            
+            if current_penalty < best_penalty {
+                best_penalty = current_penalty;
+                best_schedule = self.clone();
+            }
+        }
+        
+        // Restore the best schedule found across all restarts
+        *self = best_schedule;
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -212,7 +285,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         
         let initial_penalty = schedule.penalty();
-        schedule.improve(args.nswaps, args.noise);
+        schedule.improve(args.nswaps, args.noise, args.restarts);
         let final_penalty = schedule.penalty();
         
         println!("  Initial penalty: {:.2}", initial_penalty);
