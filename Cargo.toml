@@ -10,6 +10,7 @@ modern-multiset = "1.0.0"
 ndarray = "0.16.1"
 ordered-float = "5.0.0"
 serde_json = "1.0"
+thiserror = "2.0"
 
 [dependencies.serde]
 version = "1.0"
