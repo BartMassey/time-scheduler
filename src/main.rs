@@ -15,7 +15,7 @@ struct Args {
     noise: bool,
     #[arg(short='r', long="nrestarts", help="Number of restarts (0 = no restarts)")]
     restarts: Option<usize>,
-    #[arg(short='i', long="instances", help="JSON file containing problem instances")]
+    #[arg(help="JSON file containing problem instances")]
     instances_file: String,
 }
 
