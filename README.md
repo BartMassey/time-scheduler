@@ -77,7 +77,7 @@ let penalty_fn = |schedule: &Schedule<Meeting>| {
 };
 
 // Optimize with restarts and noise
-schedule.improve_with_penalty(penalty_fn, None, true, Some(5));
+schedule.improve(penalty_fn, None, true, Some(5));
 ```
 
 ### Running the Example

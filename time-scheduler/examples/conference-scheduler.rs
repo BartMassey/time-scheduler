@@ -97,7 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         let initial_penalty = activity_penalty(&schedule);
-        schedule.improve_with_penalty(activity_penalty, args.nswaps, args.noise, args.restarts);
+        schedule.improve(activity_penalty, args.nswaps, args.noise, args.restarts);
         let final_penalty = activity_penalty(&schedule);
 
         println!("  Initial penalty: {initial_penalty:.2}");
