@@ -1,0 +1,15 @@
+[package]
+name = "time-scheduler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fastrand = { workspace = true }
+ndarray = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+clap = { workspace = true }
+serde_json = { workspace = true }
+ordered-float = { workspace = true }

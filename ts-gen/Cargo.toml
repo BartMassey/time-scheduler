@@ -1,0 +1,15 @@
+[package]
+name = "ts-gen"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "ts-gen"
+path = "src/main.rs"
+
+[dependencies]
+time-scheduler = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+fastrand = { workspace = true }
