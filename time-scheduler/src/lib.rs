@@ -300,7 +300,7 @@ where
     /// The schedule will be left in the best state found during improvement.
     pub fn run(self) {
         self.schedule
-            .improve_internal(self.penalty_fn, self.max_swaps, self.noise, self.restarts);
+            .improve_run(self.penalty_fn, self.max_swaps, self.noise, self.restarts);
     }
 }
 
@@ -590,7 +590,7 @@ impl<A: Clone> Schedule<A> {
 }
 
 impl<A: Clone> Schedule<A> {
-    /// Internal method for improving the schedule using local search.
+    /// Run a complete improvement process with optional restarts.
     ///
     /// This method uses a hill-climbing algorithm to improve the schedule by
     /// trying swaps between different locations and keeping beneficial changes.
@@ -645,7 +645,7 @@ impl<A: Clone> Schedule<A> {
     /// // Improve with 5 restarts and noise
     /// schedule.improve(penalty_fn).with_noise().restarts(5).run();
     /// ```
-    fn improve_internal<F>(
+    fn improve_run<F>(
         &mut self,
         penalty_fn: F,
         nswaps: Option<usize>,
@@ -751,6 +751,9 @@ impl<A: Clone> Schedule<A> {
                     best_penalty = penalty;
                     best_schedule = self.clone();
                 }
+            } else if !noise {
+                // Pure greedy search: stop when no improvement found (local optimum reached)
+                break;
             }
         }
 
