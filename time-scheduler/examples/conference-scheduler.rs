@@ -97,7 +97,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         let initial_penalty = activity_penalty(&schedule);
-        schedule.improve(activity_penalty, args.nswaps, args.noise, args.restarts);
+
+        // Use the new builder API
+        let mut improver = schedule.improve(activity_penalty);
+        if let Some(nswaps) = args.nswaps {
+            improver = improver.max_swaps(nswaps);
+        }
+        if args.noise {
+            improver = improver.with_noise();
+        }
+        if let Some(restarts) = args.restarts {
+            improver = improver.restarts(restarts);
+        }
+        improver.run();
+
         let final_penalty = activity_penalty(&schedule);
 
         println!("  Initial penalty: {initial_penalty:.2}");

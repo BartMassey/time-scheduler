@@ -45,23 +45,20 @@
 //!     instance.activities.into_iter(),
 //! );
 //!
-//! // Define a penalty function
-//! let penalty_fn = |schedule: &Schedule<Activity>| {
+//! // Improve the schedule with a penalty function
+//! schedule.improve(|schedule: &Schedule<Activity>| {
 //!     // Calculate penalty based on unscheduled activities, conflicts, etc.
 //!     schedule.get_unscheduled_activities()
 //!         .map(|a| a.priority as f32)
 //!         .sum::<f32>()
-//! };
-//!
-//! // Improve the schedule
-//! schedule.improve(penalty_fn, None, false, Some(5));
+//! }).with_noise().restarts(5).run();
 //! ```
 //!
 //! ## Key Capabilities
 //!
 //! - **Generic Activity Types**: Use any type `A` for activities
 //! - **Flexible Penalty Functions**: Define custom evaluation criteria
-//! - **Local Search Optimization**: Hill-climbing with configurable parameters
+//! - **Local Search Improvement**: Hill-climbing with configurable parameters
 //! - **Multi-restart Support**: Escape local optima with random restarts
 //! - **Noise Moves**: Explore solution space with probabilistic moves
 //! - **Bounds Checking**: Safe access to schedule slots with error handling
@@ -196,6 +193,115 @@ pub struct Schedule<A> {
 
     /// Activities that haven't been assigned to a slot yet
     unscheduled: Vec<Option<A>>,
+}
+
+/// Builder for configuring schedule improvement parameters.
+///
+/// Provides a fluent API for setting improvement parameters with sensible defaults.
+/// Use [`Schedule::improve`] to create an improver instance.
+///
+/// # Examples
+///
+/// ```rust
+/// use time_scheduler::Schedule;
+///
+/// #[derive(Clone)]
+/// struct Task { priority: usize }
+///
+/// let mut schedule = Schedule::new(3, 5, vec![Task { priority: 10 }].into_iter());
+///
+/// // Simple improvement with defaults
+/// schedule.improve(|s: &Schedule<Task>| s.empty_slots_count() as f32).run();
+///
+/// // Customized improvement
+/// schedule.improve(|s: &Schedule<Task>| s.empty_slots_count() as f32)
+///     .max_swaps(5000)
+///     .with_noise()
+///     .restarts(10)
+///     .run();
+/// ```
+pub struct Improver<'a, A, F> {
+    schedule: &'a mut Schedule<A>,
+    penalty_fn: F,
+    max_swaps: Option<usize>,
+    noise: bool,
+    restarts: Option<usize>,
+}
+
+impl<'a, A: Clone, F> Improver<'a, A, F>
+where
+    F: Fn(&Schedule<A>) -> f32,
+{
+    fn new(schedule: &'a mut Schedule<A>, penalty_fn: F) -> Self {
+        Self {
+            schedule,
+            penalty_fn,
+            max_swaps: None,
+            noise: false,
+            restarts: None,
+        }
+    }
+
+    /// Set the maximum number of swap attempts per improvement run.
+    ///
+    /// If not specified, defaults to `2 * (total_locations)^3`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use time_scheduler::Schedule;
+    /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
+    /// schedule.improve(|_| 0.0).max_swaps(1000).run();
+    /// ```
+    pub fn max_swaps(mut self, max_swaps: usize) -> Self {
+        self.max_swaps = Some(max_swaps);
+        self
+    }
+
+    /// Enable noise moves that can temporarily worsen the solution.
+    ///
+    /// Noise moves help escape local optima by occasionally making random moves
+    /// that may increase the penalty. The algorithm still tracks and returns
+    /// the best solution found.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use time_scheduler::Schedule;
+    /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
+    /// schedule.improve(|_| 0.0).with_noise().run();
+    /// ```
+    pub fn with_noise(mut self) -> Self {
+        self.noise = true;
+        self
+    }
+
+    /// Set the number of restart attempts with random reshuffling.
+    ///
+    /// Each restart begins with a random reshuffling of the current schedule,
+    /// then runs a full improvement process. The best solution across all restarts
+    /// is returned. If not specified, no restarts are performed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use time_scheduler::Schedule;
+    /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
+    /// schedule.improve(|_| 0.0).restarts(5).run();
+    /// ```
+    pub fn restarts(mut self, restarts: usize) -> Self {
+        self.restarts = Some(restarts);
+        self
+    }
+
+    /// Run the improvement with the configured parameters.
+    ///
+    /// This consumes the improver and applies the improvement to the schedule.
+    /// The schedule will be left in the best state found during improvement.
+    pub fn run(self) {
+        self.schedule
+            .improve_internal(self.penalty_fn, self.max_swaps, self.noise, self.restarts);
+    }
 }
 
 impl<A: Clone> Schedule<A> {
@@ -445,10 +551,46 @@ impl<A: Clone> Schedule<A> {
             U(i) => self.unscheduled[i] = activity1,
         }
     }
+
+    /// Create an improver for this schedule with the given penalty function.
+    ///
+    /// Returns an [`Improver`] that can be configured with various parameters
+    /// before running the improvement.
+    ///
+    /// # Arguments
+    ///
+    /// * `penalty_fn` - Function that evaluates schedule quality. Lower scores are better.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use time_scheduler::Schedule;
+    ///
+    /// #[derive(Clone)]
+    /// struct Meeting { priority: usize }
+    ///
+    /// let mut schedule = Schedule::new(3, 5, vec![Meeting { priority: 10 }].into_iter());
+    ///
+    /// // Simple improvement
+    /// schedule.improve(|s: &Schedule<Meeting>| {
+    ///     s.get_unscheduled_activities().map(|m| m.priority as f32).sum::<f32>()
+    /// }).run();
+    ///
+    /// // With custom parameters
+    /// schedule.improve(|s: &Schedule<Meeting>| {
+    ///     s.get_unscheduled_activities().map(|m| m.priority as f32).sum::<f32>()
+    /// }).max_swaps(2000).with_noise().restarts(3).run();
+    /// ```
+    pub fn improve<F>(&mut self, penalty_fn: F) -> Improver<A, F>
+    where
+        F: Fn(&Schedule<A>) -> f32,
+    {
+        Improver::new(self, penalty_fn)
+    }
 }
 
 impl<A: Clone> Schedule<A> {
-    /// Improve the schedule using local search optimization.
+    /// Internal method for improving the schedule using local search.
     ///
     /// This method uses a hill-climbing algorithm to improve the schedule by
     /// trying swaps between different locations and keeping beneficial changes.
@@ -500,10 +642,10 @@ impl<A: Clone> Schedule<A> {
     ///     unscheduled_penalty + empty_slots_penalty
     /// };
     ///
-    /// // Optimize with 5 restarts and noise
-    /// schedule.improve(penalty_fn, None, true, Some(5));
+    /// // Improve with 5 restarts and noise
+    /// schedule.improve(penalty_fn).with_noise().restarts(5).run();
     /// ```
-    pub fn improve<F>(
+    fn improve_internal<F>(
         &mut self,
         penalty_fn: F,
         nswaps: Option<usize>,
@@ -573,10 +715,10 @@ impl<A: Clone> Schedule<A> {
                 let j = random_usize(0..ntotal);
                 self.swap_locations(all_locations[i], all_locations[j]);
                 let new_penalty = penalty_fn(self);
-                
+
                 // Always accept noise moves (even if they disimprove)
                 penalty = new_penalty;
-                
+
                 // Update best if this noise move happened to improve
                 if new_penalty < best_penalty {
                     best_penalty = new_penalty;
@@ -603,7 +745,7 @@ impl<A: Clone> Schedule<A> {
             if let Some((i, j)) = cur_best {
                 self.swap_locations(all_locations[i], all_locations[j]);
                 penalty = cur_penalty;
-                
+
                 // Update best if this greedy move improved our overall best
                 if penalty < best_penalty {
                     best_penalty = penalty;

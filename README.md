@@ -76,8 +76,11 @@ let penalty_fn = |schedule: &Schedule<Meeting>| {
         .sum::<f32>()
 };
 
-// Optimize with restarts and noise
-schedule.improve(penalty_fn, None, true, Some(5));
+// Improve with restarts and noise using builder pattern
+schedule.improve(penalty_fn).with_noise().restarts(5).run();
+
+// Or with defaults (no noise, no restarts)
+schedule.improve(penalty_fn).run();
 ```
 
 ### Running the Example
