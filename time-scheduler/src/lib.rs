@@ -244,7 +244,9 @@ where
 
     /// Set the maximum number of swap attempts per improvement run.
     ///
-    /// If not specified, defaults to `2 * (total_locations)^3`.
+    /// If not specified, defaults to `5 * (total_locations)^2`. Note that pure
+    /// greedy search (without noise) will terminate early when no improvement
+    /// is found, making this limit primarily relevant for noisy search.
     ///
     /// # Examples
     ///
@@ -695,7 +697,12 @@ impl<A: Clone> Schedule<A> {
         let (nplaces, ntimes) = self.slots.dim();
         let nunscheduled = self.unscheduled.len();
         let ntotal = nplaces * ntimes + nunscheduled;
-        let nswaps = nswaps.unwrap_or(2 * usize::pow(ntotal, 3));
+        // Default nswaps: 5 * ntotal^2
+        // Rationale: Allows multiple cycles of greedy descent + noise escape.
+        // Greedy search terminates naturally, but noisy search needs enough iterations
+        // to escape local optima multiple times. Quadratic scaling accounts for the
+        // roughly O(ntotal^2) possible swaps per iteration and allows ~5 exploration cycles.
+        let nswaps = nswaps.unwrap_or(5 * ntotal * ntotal);
 
         let all_locations: Vec<Loc> = (0..nplaces)
             .flat_map(|p| (0..ntimes).map(move |t| S(p, t)))
