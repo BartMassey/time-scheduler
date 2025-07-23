@@ -697,6 +697,11 @@ impl<A: Clone> Schedule<A> {
         let (nplaces, ntimes) = self.slots.dim();
         let nunscheduled = self.unscheduled.len();
         let ntotal = nplaces * ntimes + nunscheduled;
+        
+        // Early return for empty schedules (no optimization possible)
+        if ntotal == 0 {
+            return;
+        }
         // Default nswaps: 5 * ntotal^2
         // Rationale: Allows multiple cycles of greedy descent + noise escape.
         // Greedy search terminates naturally, but noisy search needs enough iterations
@@ -718,8 +723,12 @@ impl<A: Clone> Schedule<A> {
         for _ in 0..nswaps {
             // Noise move: random swap that may disimprove (escape local optima)
             if noise && random_usize(0..2) == 0 {
-                let i = random_usize(0..ntotal);
-                let j = random_usize(0..ntotal);
+                let i = random_usize(0..(nplaces * ntimes)); // Always pick from scheduled slots
+                let mut j = random_usize(0..(ntotal - 1));       // Pick from reduced range
+                if j >= i {
+                    j += 1; // Skip over i to avoid self-swap
+                }
+                
                 self.swap_locations(all_locations[i], all_locations[j]);
                 let new_penalty = penalty_fn(self);
 
@@ -737,8 +746,10 @@ impl<A: Clone> Schedule<A> {
             // Greedy move: find the best improving swap among all possibilities
             let mut cur_best = None;
             let mut cur_penalty = penalty;
-            for i in 0..ntotal {
-                for j in i + 1..ntotal {
+            for i in 0..(nplaces * ntimes) {  // Only iterate over scheduled slots
+                for j in i + 1..ntotal {       // j can be any slot after i
+                    // U-U swaps automatically avoided since i is always scheduled
+                    
                     self.swap_locations(all_locations[i], all_locations[j]);
                     let new_penalty = penalty_fn(self);
                     if cur_penalty > new_penalty {
