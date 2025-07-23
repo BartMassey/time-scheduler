@@ -514,28 +514,31 @@ impl<A: Clone> Schedule<A> {
     {
         let num_restarts = restarts.unwrap_or(0);
 
+        // Single run case: optimize once and return
         if num_restarts == 0 {
             self.improve_single(&penalty_fn, nswaps, noise);
             return;
         }
 
+        // Run first optimization and track as initial best
+        self.improve_single(&penalty_fn, nswaps, noise);
         let mut best_penalty = penalty_fn(self);
         let mut best_schedule = self.clone();
 
-        for restart_num in 0..=num_restarts {
-            if restart_num > 0 {
-                self.reshuffle();
-            }
-
+        // Try additional restarts with reshuffling
+        for _ in 0..num_restarts {
+            self.reshuffle();
             self.improve_single(&penalty_fn, nswaps, noise);
             let current_penalty = penalty_fn(self);
 
+            // Update best if this restart found a better solution
             if current_penalty < best_penalty {
                 best_penalty = current_penalty;
                 best_schedule = self.clone();
             }
         }
 
+        // Restore the best solution found across all runs
         *self = best_schedule;
     }
 
@@ -546,6 +549,7 @@ impl<A: Clone> Schedule<A> {
         use fastrand::usize as random_usize;
         use Loc::*;
 
+        // Setup: calculate dimensions and generate all possible locations
         let (nplaces, ntimes) = self.slots.dim();
         let nunscheduled = self.unscheduled.len();
         let ntotal = nplaces * ntimes + nunscheduled;
@@ -556,38 +560,59 @@ impl<A: Clone> Schedule<A> {
             .chain((0..nunscheduled).map(U))
             .collect();
 
-        let mut penalty = penalty_fn(self);
+        // Initialize best solution tracking for this single run
+        let mut best_penalty = penalty_fn(self);
+        let mut best_schedule = self.clone();
+        let mut penalty = best_penalty;
+
+        // Main optimization loop: try up to nswaps improvements
         for _ in 0..nswaps {
+            // Noise move: random swap that may disimprove (escape local optima)
             if noise && random_usize(0..2) == 0 {
                 let i = random_usize(0..ntotal);
                 let j = random_usize(0..ntotal);
                 self.swap_locations(all_locations[i], all_locations[j]);
                 let new_penalty = penalty_fn(self);
-                if new_penalty < penalty {
-                    penalty = new_penalty;
-                } else {
-                    self.swap_locations(all_locations[j], all_locations[i]);
+                
+                // Always accept noise moves (even if they disimprove)
+                penalty = new_penalty;
+                
+                // Update best if this noise move happened to improve
+                if new_penalty < best_penalty {
+                    best_penalty = new_penalty;
+                    best_schedule = self.clone();
                 }
                 continue;
             }
 
-            let mut cur_best = (0, 1);
+            // Greedy move: find the best improving swap among all possibilities
+            let mut cur_best = None;
             let mut cur_penalty = penalty;
             for i in 0..ntotal {
                 for j in i + 1..ntotal {
                     self.swap_locations(all_locations[i], all_locations[j]);
                     let new_penalty = penalty_fn(self);
                     if cur_penalty > new_penalty {
-                        cur_best = (i, j);
+                        cur_best = Some((i, j));
                         cur_penalty = new_penalty;
                     }
                     self.swap_locations(all_locations[j], all_locations[i]);
                 }
             }
-            if cur_penalty < penalty {
-                self.swap_locations(all_locations[cur_best.0], all_locations[cur_best.1]);
+            // Apply the best greedy move if one was found
+            if let Some((i, j)) = cur_best {
+                self.swap_locations(all_locations[i], all_locations[j]);
                 penalty = cur_penalty;
+                
+                // Update best if this greedy move improved our overall best
+                if penalty < best_penalty {
+                    best_penalty = penalty;
+                    best_schedule = self.clone();
+                }
             }
         }
+
+        // Restore the best solution found during this single run
+        *self = best_schedule;
     }
 }
