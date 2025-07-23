@@ -296,6 +296,42 @@ where
         self
     }
 
+    /// Set the number of restart attempts with proportional swap division.
+    ///
+    /// This method provides fair comparison between different restart strategies
+    /// by dividing the total swap budget across all restarts. For example, if
+    /// `max_swaps(1000).restarts_proportional(5)` is used, each of the 5 restarts
+    /// will get 200 swaps instead of 1000 each.
+    ///
+    /// If `max_swaps` was not explicitly set, the default budget is calculated
+    /// first, then divided across restarts.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use time_scheduler::Schedule;
+    /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
+    /// // 1000 total swaps divided across 5 restarts = 200 swaps per restart
+    /// schedule.improve(|_| 0.0).max_swaps(1000).restarts_proportional(5).run();
+    /// ```
+    pub fn restarts_proportional(mut self, restarts: usize) -> Self {
+        // Calculate total swap budget if not already set
+        if self.max_swaps.is_none() {
+            let (nplaces, ntimes) = self.schedule.slots.dim();
+            let nunscheduled = self.schedule.unscheduled.len();
+            let ntotal = nplaces * ntimes + nunscheduled;
+            self.max_swaps = Some(5 * ntotal * ntotal);
+        }
+        
+        // Divide the swap budget across restarts
+        if let Some(total_swaps) = self.max_swaps {
+            self.max_swaps = Some(total_swaps / (restarts + 1)); // +1 for initial run
+        }
+        
+        self.restarts = Some(restarts);
+        self
+    }
+
     /// Run the improvement with the configured parameters.
     ///
     /// This consumes the improver and applies the improvement to the schedule.

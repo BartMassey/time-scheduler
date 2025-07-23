@@ -19,6 +19,12 @@ struct Args {
         help = "Number of restarts (0 = no restarts)"
     )]
     restarts: Option<usize>,
+    #[arg(
+        short = 'p',
+        long = "proportional",
+        help = "Divide total swap budget across restarts for fair comparison"
+    )]
+    proportional: bool,
     #[arg(help = "JSON file containing problem instances")]
     instances_file: String,
 }
@@ -107,7 +113,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             improver = improver.with_noise();
         }
         if let Some(restarts) = args.restarts {
-            improver = improver.restarts(restarts);
+            if args.proportional {
+                improver = improver.restarts_proportional(restarts);
+            } else {
+                improver = improver.restarts(restarts);
+            }
         }
         improver.run();
 
