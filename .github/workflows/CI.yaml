@@ -135,10 +135,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Install Rust 1.75 (MSRV)
+    - name: Install Rust 1.82 (MSRV)
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: 1.75.0
+        toolchain: 1.82.0
     - name: Cache dependencies
       uses: actions/cache@v3
       with:
@@ -146,6 +146,6 @@ jobs:
           ~/.cargo/cache
           ~/.cargo/registry
           target
-        key: ${{ runner.os }}-cargo-1.75-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-1.82-${{ hashFiles('**/Cargo.lock') }}
     - name: Check MSRV
-      run: cargo check --all-features
+      run: cargo check --locked --all-features
