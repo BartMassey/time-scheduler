@@ -312,7 +312,7 @@ where
     ///
     /// ```rust
     /// # use time_scheduler::Schedule;
-    /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
+    /// let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
     /// schedule.improve(|_| (0usize, 0.0f32)).max_swaps(1000).run();
     /// ```
     pub fn max_swaps(mut self, max_swaps: usize) -> Self {
@@ -330,7 +330,7 @@ where
     ///
     /// ```rust
     /// # use time_scheduler::Schedule;
-    /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
+    /// let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
     /// schedule.improve(|_| (0usize, 0.0f32)).with_noise().run();
     /// ```
     pub fn with_noise(mut self) -> Self {
@@ -349,7 +349,7 @@ where
     ///
     /// ```rust
     /// # use time_scheduler::Schedule;
-    /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
+    /// let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
     /// schedule.improve(|_| (0usize, 0.0f32)).restarts(5).run();
     /// ```
     pub fn restarts(mut self, restarts: usize) -> Self {
@@ -371,7 +371,7 @@ where
     ///
     /// ```rust
     /// # use time_scheduler::Schedule;
-    /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
+    /// let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
     /// // 1000 total swaps divided across 5 runs = 200 swaps per run
     /// schedule.improve(|_| (0usize, 0.0f32)).max_swaps(1000).restarts_proportional(5).run();
     /// ```
@@ -393,7 +393,7 @@ where
     /// ```rust
     /// # use time_scheduler::Schedule;
     /// # use std::time::Duration;
-    /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
+    /// let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
     /// // Limit improvement to 5 seconds maximum
     /// schedule.improve(|_| (0usize, 0.0f32)).timeout(Duration::from_secs(5)).run();
     /// ```
