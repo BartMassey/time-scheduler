@@ -50,9 +50,12 @@ pub struct Activity {
 #[derive(Serialize)]
 struct RunResult {
     instance_id: String,
-    initial_penalty: f32,
-    final_penalty: f32,
-    improvement: f32,
+    initial_unscheduled: usize,
+    initial_other_penalty: f32,
+    final_unscheduled: usize,
+    final_other_penalty: f32,
+    unscheduled_improvement: i32,
+    other_improvement: f32,
     config: RunConfig,
 }
 
@@ -65,18 +68,20 @@ struct RunConfig {
     nswaps: Option<usize>,
 }
 
-fn activity_penalty(schedule: &Schedule<Activity>) -> f32 {
-    let mut penalty = 0.0;
+fn activity_penalty(schedule: &Schedule<Activity>) -> (usize, f32) {
+    let nunscheduled = schedule.get_unscheduled_activities().count();
+    let nempty = schedule.empty_slots_count();
+    
+    let mut other_penalty = 0.0;
 
+    // Penalty for unscheduled activities based on their priority
     let missed_out = schedule
         .get_unscheduled_activities()
         .map(|a| 1.0 * a.priority as f32)
         .sum::<f32>();
-    penalty += missed_out;
+    other_penalty += missed_out;
 
-    let nempty = schedule.empty_slots_count();
-    penalty += 10_000.0 * nempty as f32;
-
+    // Priority and topic conflicts within time slots
     let mut topic_conflicts = 0.0;
     let mut priority_conflicts = 0.0;
     for r in schedule.slots().axis_iter(Axis(1)) {
@@ -105,17 +110,18 @@ fn activity_penalty(schedule: &Schedule<Activity>) -> f32 {
         let tc = topic_counts.values().map(|&c| c * c).sum::<f32>();
         topic_conflicts += 10.0 * tc;
     }
-    penalty += priority_conflicts + topic_conflicts;
+    other_penalty += priority_conflicts + topic_conflicts;
 
+    // Lateness penalty (earlier time slots are preferred)
     let mut lateness = 0.0;
     for (t, c) in schedule.slots().axis_iter(Axis(0)).enumerate() {
         for a in c.into_iter().flatten() {
             lateness += 0.1 * a.priority as f32 * t as f32;
         }
     }
-    penalty += lateness;
+    other_penalty += lateness;
 
-    penalty
+    (nunscheduled + nempty, other_penalty)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -135,7 +141,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             instance.activities.into_iter(),
         );
 
-        let initial_penalty = activity_penalty(&schedule);
+        let (initial_unscheduled, initial_other_penalty) = activity_penalty(&schedule);
 
         // Use the new builder API
         let mut improver = schedule.improve(activity_penalty);
@@ -157,15 +163,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         improver.run();
 
-        let final_penalty = activity_penalty(&schedule);
-        let improvement = initial_penalty - final_penalty;
+        let (final_unscheduled, final_other_penalty) = activity_penalty(&schedule);
+        let unscheduled_improvement = initial_unscheduled as i32 - final_unscheduled as i32;
+        let other_improvement = initial_other_penalty - final_other_penalty;
 
         if args.json {
             results.push(RunResult {
                 instance_id: instance.id,
-                initial_penalty,
-                final_penalty,
-                improvement,
+                initial_unscheduled,
+                initial_other_penalty,
+                final_unscheduled,
+                final_other_penalty,
+                unscheduled_improvement,
+                other_improvement,
                 config: RunConfig {
                     noise: args.noise,
                     restarts: args.restarts,
@@ -175,8 +185,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
             });
         } else {
-            println!("{} {:.2} {:.2} {:.2}", 
-                     instance.id, initial_penalty, final_penalty, improvement);
+            println!("{} unscheduled:{}->{} other:{:.2}->{:.2} improvements:{},{:.2}", 
+                     instance.id, 
+                     initial_unscheduled, final_unscheduled,
+                     initial_other_penalty, final_other_penalty,
+                     unscheduled_improvement, other_improvement);
         }
     }
 

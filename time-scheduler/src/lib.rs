@@ -283,9 +283,10 @@ pub struct Improver<'a, A, F> {
     proportional_restarts: bool,
 }
 
-impl<'a, A: Clone, F> Improver<'a, A, F>
+impl<'a, A: Clone, F, P> Improver<'a, A, F>
 where
-    F: Fn(&Schedule<A>) -> f32,
+    F: Fn(&Schedule<A>) -> P,
+    P: Copy + PartialOrd,
 {
     fn new(schedule: &'a mut Schedule<A>, penalty_fn: F) -> Self {
         Self {
@@ -686,9 +687,10 @@ impl<A: Clone> Schedule<A> {
     ///     s.get_unscheduled_activities().map(|m| m.priority as f32).sum::<f32>()
     /// }).max_swaps(2000).with_noise().restarts(3).run();
     /// ```
-    pub fn improve<F>(&mut self, penalty_fn: F) -> Improver<A, F>
+    pub fn improve<F, P>(&mut self, penalty_fn: F) -> Improver<A, F>
     where
-        F: Fn(&Schedule<A>) -> f32,
+        F: Fn(&Schedule<A>) -> P,
+        P: Copy + PartialOrd,
     {
         Improver::new(self, penalty_fn)
     }
@@ -750,7 +752,7 @@ impl<A: Clone> Schedule<A> {
     /// // Improve with 5 restarts and noise
     /// schedule.improve(penalty_fn).with_noise().restarts(5).run();
     /// ```
-    fn improve_run<F>(
+    fn improve_run<F, P>(
         &mut self,
         penalty_fn: F,
         nswaps: Option<usize>,
@@ -759,7 +761,8 @@ impl<A: Clone> Schedule<A> {
         timeout: Option<Duration>,
         proportional_restarts: bool,
     ) where
-        F: Fn(&Schedule<A>) -> f32,
+        F: Fn(&Schedule<A>) -> P,
+        P: Copy + PartialOrd,
     {
         let num_restarts = restarts.unwrap_or(0);
 
@@ -804,9 +807,10 @@ impl<A: Clone> Schedule<A> {
         *self = best_schedule;
     }
 
-    fn improve_single<F>(&mut self, penalty_fn: &F, nswaps: Option<usize>, noise: bool, timeout: Option<Duration>)
+    fn improve_single<F, P>(&mut self, penalty_fn: &F, nswaps: Option<usize>, noise: bool, timeout: Option<Duration>)
     where
-        F: Fn(&Schedule<A>) -> f32,
+        F: Fn(&Schedule<A>) -> P,
+        P: Copy + PartialOrd,
     {
         use fastrand::usize as random_usize;
         use Loc::*;
