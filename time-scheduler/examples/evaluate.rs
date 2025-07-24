@@ -59,9 +59,12 @@ struct Args {
 #[derive(Serialize, Deserialize)]
 struct RunResult {
     instance_id: String,
-    initial_penalty: f32,
-    final_penalty: f32,
-    improvement: f32,
+    initial_unscheduled: usize,
+    initial_other_penalty: f32,
+    final_unscheduled: usize,
+    final_other_penalty: f32,
+    unscheduled_improvement: i32,
+    other_improvement: f32,
     config: RunConfig,
 }
 
@@ -104,7 +107,7 @@ fn run_scheduler(
     config: &ConfigDescription,
 ) -> Result<Vec<RunResult>, Box<dyn std::error::Error>> {
     let mut cmd = Command::new("cargo");
-    cmd.args(&["run", "--release", "--example", "conference-scheduler"])
+    cmd.args(["run", "--release", "--example", "conference-scheduler"])
         .arg(instances_file)
         .arg("--json")
         .arg("--timeout")
@@ -143,12 +146,22 @@ fn run_scheduler(
 fn calculate_statistics(results: &[Vec<RunResult>]) -> Statistics {
     let improvements: Vec<f32> = results
         .iter()
-        .flat_map(|run_results| run_results.iter().map(|r| r.improvement))
+        .flat_map(|run_results| {
+            run_results.iter().map(|r| {
+                // Combined improvement: unscheduled improvement (weighted heavily) + other improvement
+                r.unscheduled_improvement as f32 * 1000.0 + r.other_improvement
+            })
+        })
         .collect();
 
     let final_penalties: Vec<f32> = results
         .iter()
-        .flat_map(|run_results| run_results.iter().map(|r| r.final_penalty))
+        .flat_map(|run_results| {
+            run_results.iter().map(|r| {
+                // Combined penalty: unscheduled count (weighted heavily) + other penalty
+                r.final_unscheduled as f32 * 1000.0 + r.final_other_penalty
+            })
+        })
         .collect();
 
     let mean_improvement = improvements.iter().sum::<f32>() / improvements.len() as f32;
@@ -212,7 +225,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.proportional,
                 config.timeout,
                 if let Some(s) = config.nswaps {
-                    format!(", nswaps={}", s)
+                    format!(", nswaps={s}")
                 } else {
                     String::new()
                 }

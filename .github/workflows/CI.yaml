@@ -108,7 +108,7 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Check version sync
-      run: cargo test --test version-sync
+      run: cargo test --package time-scheduler --test version-sync
 
   examples:
     name: Examples
@@ -126,19 +126,19 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Run conference scheduler example
-      run: cargo run --example conference-scheduler time-scheduler/examples/instance.json
+      run: cargo run --package time-scheduler --example conference-scheduler time-scheduler/examples/instance.json
     - name: Run evaluate example
-      run: cargo run --example evaluate time-scheduler/examples/instance.json --json
+      run: cargo run --package time-scheduler --example evaluate time-scheduler/examples/instance.json --json
 
   minimum-supported-rust-version:
     name: Minimum Supported Rust Version
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Install Rust 1.70 (MSRV)
+    - name: Install Rust 1.75 (MSRV)
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: 1.70.0
+        toolchain: 1.75.0
     - name: Cache dependencies
       uses: actions/cache@v3
       with:
@@ -146,6 +146,6 @@ jobs:
           ~/.cargo/cache
           ~/.cargo/registry
           target
-        key: ${{ runner.os }}-cargo-1.70-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-1.75-${{ hashFiles('**/Cargo.lock') }}
     - name: Check MSRV
       run: cargo check --all-features

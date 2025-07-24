@@ -2,6 +2,7 @@
 name = "time-scheduler"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
 authors = ["Bart Massey <bart@cs.pdx.edu>"]
 license = "MIT OR Apache-2.0"
 description = "A flexible library for scheduling activities in time slots with customizable penalty functions"
