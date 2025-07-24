@@ -13,11 +13,17 @@ keywords = ["scheduling", "optimization", "local-search", "timetabling", "constr
 categories = ["algorithms"]
 publish = false
 
+[[example]]
+name = "evaluate"
+path = "examples/evaluate.rs"
+
 [dependencies]
 fastrand = { workspace = true }
 ndarray = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
+clap = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 clap = { workspace = true }

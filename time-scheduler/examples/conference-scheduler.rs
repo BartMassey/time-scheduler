@@ -32,6 +32,11 @@ struct Args {
         help = "Runtime timeout in seconds"
     )]
     timeout: Option<u64>,
+    #[arg(
+        long = "json",
+        help = "Output results in JSON format for script parsing"
+    )]
+    json: bool,
     #[arg(help = "JSON file containing problem instances")]
     instances_file: String,
 }
@@ -40,6 +45,24 @@ struct Args {
 pub struct Activity {
     pub priority: usize,
     pub topic: usize,
+}
+
+#[derive(Serialize)]
+struct RunResult {
+    instance_id: String,
+    initial_penalty: f32,
+    final_penalty: f32,
+    improvement: f32,
+    config: RunConfig,
+}
+
+#[derive(Serialize)]
+struct RunConfig {
+    noise: bool,
+    restarts: Option<usize>,
+    proportional: bool,
+    timeout: Option<u64>,
+    nswaps: Option<usize>,
 }
 
 fn activity_penalty(schedule: &Schedule<Activity>) -> f32 {
@@ -101,8 +124,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_contents = fs::read_to_string(&args.instances_file)?;
     let instances: Vec<SchedulingInstance<Activity>> = serde_json::from_str(&file_contents)?;
 
+    let mut results = Vec::new();
+
+
     for instance in instances {
-        println!("Processing instance: {}", instance.id);
+        
         let mut schedule = Schedule::new(
             instance.nplaces,
             instance.ntimes,
@@ -132,11 +158,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         improver.run();
 
         let final_penalty = activity_penalty(&schedule);
+        let improvement = initial_penalty - final_penalty;
 
-        println!("  Initial penalty: {initial_penalty:.2}");
-        println!("  Final penalty:   {final_penalty:.2}");
-        println!("  Improvement:     {:.2}", initial_penalty - final_penalty);
-        println!();
+        if args.json {
+            results.push(RunResult {
+                instance_id: instance.id,
+                initial_penalty,
+                final_penalty,
+                improvement,
+                config: RunConfig {
+                    noise: args.noise,
+                    restarts: args.restarts,
+                    proportional: args.proportional,
+                    timeout: args.timeout,
+                    nswaps: args.nswaps,
+                },
+            });
+        } else {
+            println!("{} {:.2} {:.2} {:.2}", 
+                     instance.id, initial_penalty, final_penalty, improvement);
+        }
+    }
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&results)?);
     }
 
     Ok(())
