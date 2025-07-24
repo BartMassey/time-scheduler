@@ -1,5 +1,11 @@
 # Time Scheduler
 
+![Maintenance](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg)
+[![CI](https://github.com/BartMassey/time-scheduler/workflows/CI/badge.svg)](https://github.com/BartMassey/time-scheduler/actions)
+[![crates-io](https://img.shields.io/crates/v/time-scheduler.svg)](https://crates.io/crates/time-scheduler)
+[![api-docs](https://docs.rs/time-scheduler/badge.svg)](https://docs.rs/time-scheduler)
+[![dependency-status](https://deps.rs/repo/github/BartMassey/time-scheduler/status.svg)](https://deps.rs/repo/github/BartMassey/time-scheduler)
+
 A flexible Rust library for scheduling activities in time
 slots with customizable penalty functions. This library
 provides generic types and local search algorithms for
@@ -35,7 +41,7 @@ Add the library to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-time-scheduler = { path = "time-scheduler" }
+time-scheduler = "0.1"
 ```
 
 Define your activity type and create a schedule:

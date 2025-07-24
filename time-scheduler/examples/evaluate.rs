@@ -52,10 +52,7 @@ struct Args {
     )]
     repeat: usize,
 
-    #[arg(
-        long = "json",
-        help = "Output results in JSON format"
-    )]
+    #[arg(long = "json", help = "Output results in JSON format")]
     json: bool,
 }
 
@@ -130,12 +127,13 @@ fn run_scheduler(
     }
 
     let output = cmd.output()?;
-    
+
     if !output.status.success() {
         return Err(format!(
             "Scheduler failed: {}",
             String::from_utf8_lossy(&output.stderr)
-        ).into());
+        )
+        .into());
     }
 
     let results: Vec<RunResult> = serde_json::from_slice(&output.stdout)?;
@@ -160,7 +158,8 @@ fn calculate_statistics(results: &[Vec<RunResult>]) -> Statistics {
         let variance = improvements
             .iter()
             .map(|x| (x - mean_improvement).powi(2))
-            .sum::<f32>() / improvements.len() as f32;
+            .sum::<f32>()
+            / improvements.len() as f32;
         variance.sqrt()
     };
 
@@ -168,7 +167,8 @@ fn calculate_statistics(results: &[Vec<RunResult>]) -> Statistics {
         let variance = final_penalties
             .iter()
             .map(|x| (x - mean_final_penalty).powi(2))
-            .sum::<f32>() / final_penalties.len() as f32;
+            .sum::<f32>()
+            / final_penalties.len() as f32;
         variance.sqrt()
     };
 
@@ -211,7 +211,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 config.noise,
                 config.proportional,
                 config.timeout,
-                if let Some(s) = config.nswaps { format!(", nswaps={}", s) } else { String::new() }
+                if let Some(s) = config.nswaps {
+                    format!(", nswaps={}", s)
+                } else {
+                    String::new()
+                }
             );
         }
 
@@ -237,8 +241,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if !args.json {
             println!("  Results:");
-            println!("    Mean improvement: {:.2} ± {:.2}", stats.mean_improvement, stats.std_improvement);
-            println!("    Mean final penalty: {:.2} ± {:.2}", stats.mean_final_penalty, stats.std_final_penalty);
+            println!(
+                "    Mean improvement: {:.2} ± {:.2}",
+                stats.mean_improvement, stats.std_improvement
+            );
+            println!(
+                "    Mean final penalty: {:.2} ± {:.2}",
+                stats.mean_final_penalty, stats.std_final_penalty
+            );
             println!("    Success rate: {:.1}%", stats.success_rate);
             println!("    Total time: {:.1}s", elapsed.as_secs_f32());
             println!();
@@ -254,12 +264,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.json {
         println!("{}", serde_json::to_string_pretty(&all_results)?);
     } else {
-        println!("Evaluation complete! Tested {} configurations.", all_results.len());
-        
+        println!(
+            "Evaluation complete! Tested {} configurations.",
+            all_results.len()
+        );
+
         // Find best configuration
-        if let Some(best) = all_results.iter().max_by(|a, b| 
-            a.stats.mean_improvement.partial_cmp(&b.stats.mean_improvement).unwrap()
-        ) {
+        if let Some(best) = all_results.iter().max_by(|a, b| {
+            a.stats
+                .mean_improvement
+                .partial_cmp(&b.stats.mean_improvement)
+                .unwrap()
+        }) {
             println!("Best configuration:");
             println!("  Restarts: {}", best.config.restarts);
             println!("  Noise: {}", best.config.noise);

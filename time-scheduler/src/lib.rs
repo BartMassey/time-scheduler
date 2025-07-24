@@ -1,3 +1,5 @@
+#![doc(html_root_url = "https://docs.rs/time-scheduler/0.1.0")]
+
 //! # Time Scheduler
 //!
 //! A flexible library for scheduling activities in time slots with customizable penalty functions.
@@ -47,7 +49,7 @@
 //!
 //! // Improve the schedule with a penalty function returning (unscheduled_count, other_penalty)
 //! schedule.improve(|schedule: &Schedule<Activity>| {
-//!     let unscheduled_count = schedule.get_unscheduled_activities().count() 
+//!     let unscheduled_count = schedule.get_unscheduled_activities().count()
 //!                           + schedule.empty_slots_count();
 //!     let priority_penalty = schedule.get_unscheduled_activities()
 //!         .map(|a| a.priority as f32)
@@ -91,26 +93,26 @@ impl TimeoutChecker {
             swaps_per_sec: None,
         }
     }
-    
+
     /// Check if timeout should occur. Call before every swap.
     fn should_timeout(&mut self, swap_iter: usize) -> bool {
         if swap_iter < self.next_check {
             return false;
         }
-        
+
         let elapsed = self.start_time.elapsed();
         if elapsed > self.timeout_duration {
             return true;
         }
-        
+
         // Update swaps-per-second estimate
         self.swaps_per_sec = Some(swap_iter as f64 / elapsed.as_secs_f64());
-        
+
         // Calculate remaining time and estimated remaining swaps
         let remaining_time = self.timeout_duration.as_secs_f64() - elapsed.as_secs_f64();
         if let Some(sps) = self.swaps_per_sec {
             let estimated_remaining_swaps = (sps * remaining_time).max(0.0) as usize;
-            
+
             // Set next check point
             if estimated_remaining_swaps <= 10 {
                 self.next_check = swap_iter + 1; // Single-step when close to end
@@ -121,7 +123,7 @@ impl TimeoutChecker {
             // Fallback if calculation fails
             self.next_check = swap_iter + 100;
         }
-        
+
         false
     }
 }
@@ -340,9 +342,9 @@ where
 
     /// Set the total number of improvement runs (including the initial run).
     ///
-    /// Values of 0 or 1 result in a single run with no restarts. Values ≥ 2 
+    /// Values of 0 or 1 result in a single run with no restarts. Values ≥ 2
     /// perform additional restarts with random reshuffling. Each restart begins
-    /// with a random reshuffling of the current schedule, then runs a full 
+    /// with a random reshuffling of the current schedule, then runs a full
     /// improvement process. The best solution across all runs is returned.
     ///
     /// # Examples
@@ -407,8 +409,14 @@ where
     /// This consumes the improver and applies the improvement to the schedule.
     /// The schedule will be left in the best state found during improvement.
     pub fn run(self) {
-        self.schedule
-            .improve_run(self.penalty_fn, self.max_swaps, self.noise, self.restarts, self.timeout, self.proportional_restarts);
+        self.schedule.improve_run(
+            self.penalty_fn,
+            self.max_swaps,
+            self.noise,
+            self.restarts,
+            self.timeout,
+            self.proportional_restarts,
+        );
     }
 }
 
@@ -746,7 +754,7 @@ impl<A: Clone> Schedule<A> {
     ///
     /// // Define penalty function returning (unscheduled_count, other_penalty)
     /// let penalty_fn = |schedule: &Schedule<Meeting>| {
-    ///     let unscheduled_count = schedule.get_unscheduled_activities().count() 
+    ///     let unscheduled_count = schedule.get_unscheduled_activities().count()
     ///                           + schedule.empty_slots_count();
     ///     let priority_penalty: f32 = schedule.get_unscheduled_activities()
     ///         .map(|m| m.priority as f32)
@@ -813,8 +821,13 @@ impl<A: Clone> Schedule<A> {
         *self = best_schedule;
     }
 
-    fn improve_single<F, P>(&mut self, penalty_fn: &F, nswaps: Option<usize>, noise: bool, timeout: Option<Duration>)
-    where
+    fn improve_single<F, P>(
+        &mut self,
+        penalty_fn: &F,
+        nswaps: Option<usize>,
+        noise: bool,
+        timeout: Option<Duration>,
+    ) where
         F: Fn(&Schedule<A>) -> P,
         P: Copy + PartialOrd,
     {
@@ -825,7 +838,7 @@ impl<A: Clone> Schedule<A> {
         let (nplaces, ntimes) = self.slots.dim();
         let nunscheduled = self.unscheduled.len();
         let ntotal = nplaces * ntimes + nunscheduled;
-        
+
         // Early return for empty schedules (no optimization possible)
         if ntotal == 0 {
             return;
@@ -861,11 +874,11 @@ impl<A: Clone> Schedule<A> {
             // Noise move: random swap that may disimprove (escape local optima)
             if noise && random_usize(0..2) == 0 {
                 let i = random_usize(0..(nplaces * ntimes)); // Always pick from scheduled slots
-                let mut j = random_usize(0..(ntotal - 1));       // Pick from reduced range
+                let mut j = random_usize(0..(ntotal - 1)); // Pick from reduced range
                 if j >= i {
                     j += 1; // Skip over i to avoid self-swap
                 }
-                
+
                 self.swap_locations(all_locations[i], all_locations[j]);
                 let new_penalty = penalty_fn(self);
 
@@ -883,10 +896,12 @@ impl<A: Clone> Schedule<A> {
             // Greedy move: find the best improving swap among all possibilities
             let mut cur_best = None;
             let mut cur_penalty = penalty;
-            for i in 0..(nplaces * ntimes) {  // Only iterate over scheduled slots
-                for j in i + 1..ntotal {       // j can be any slot after i
+            for i in 0..(nplaces * ntimes) {
+                // Only iterate over scheduled slots
+                for j in i + 1..ntotal {
+                    // j can be any slot after i
                     // U-U swaps automatically avoided since i is always scheduled
-                    
+
                     self.swap_locations(all_locations[i], all_locations[j]);
                     let new_penalty = penalty_fn(self);
                     if cur_penalty > new_penalty {

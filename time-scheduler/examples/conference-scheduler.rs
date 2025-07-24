@@ -26,11 +26,7 @@ struct Args {
         help = "Divide total swap budget across restarts for fair comparison"
     )]
     proportional: bool,
-    #[arg(
-        short = 't',
-        long = "timeout",
-        help = "Runtime timeout in seconds"
-    )]
+    #[arg(short = 't', long = "timeout", help = "Runtime timeout in seconds")]
     timeout: Option<u64>,
     #[arg(
         long = "json",
@@ -71,7 +67,7 @@ struct RunConfig {
 fn activity_penalty(schedule: &Schedule<Activity>) -> (usize, f32) {
     let nunscheduled = schedule.get_unscheduled_activities().count();
     let nempty = schedule.empty_slots_count();
-    
+
     let mut other_penalty = 0.0;
 
     // Penalty for unscheduled activities based on their priority
@@ -132,9 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut results = Vec::new();
 
-
     for instance in instances {
-        
         let mut schedule = Schedule::new(
             instance.nplaces,
             instance.ntimes,
@@ -185,11 +179,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
             });
         } else {
-            println!("{} unscheduled:{}->{} other:{:.2}->{:.2} improvements:{},{:.2}", 
-                     instance.id, 
-                     initial_unscheduled, final_unscheduled,
-                     initial_other_penalty, final_other_penalty,
-                     unscheduled_improvement, other_improvement);
+            println!(
+                "{} unscheduled:{}->{} other:{:.2}->{:.2} improvements:{},{:.2}",
+                instance.id,
+                initial_unscheduled,
+                final_unscheduled,
+                initial_other_penalty,
+                final_other_penalty,
+                unscheduled_improvement,
+                other_improvement
+            );
         }
     }
 

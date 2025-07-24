@@ -13,6 +13,9 @@ keywords = ["scheduling", "optimization", "local-search", "timetabling", "constr
 categories = ["algorithms"]
 publish = false
 
+[badges.maintenance]
+status = "actively-developed"
+
 [[example]]
 name = "evaluate"
 path = "examples/evaluate.rs"
@@ -29,3 +32,4 @@ serde_json = { workspace = true }
 clap = { workspace = true }
 serde_json = { workspace = true }
 ordered-float = { workspace = true }
+version-sync = "0.9"
