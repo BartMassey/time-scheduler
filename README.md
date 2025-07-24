@@ -68,12 +68,14 @@ let mut schedule = Schedule::new(
     instance.activities.into_iter(),
 );
 
-// Define penalty function
+// Define penalty function returning (unscheduled_count, other_penalty)
 let penalty_fn = |schedule: &Schedule<Meeting>| {
-    // Your custom penalty calculation
-    schedule.get_unscheduled_activities()
+    let unscheduled_count = schedule.get_unscheduled_activities().count() 
+                          + schedule.empty_slots_count();
+    let priority_penalty = schedule.get_unscheduled_activities()
         .map(|m| m.priority as f32)
-        .sum::<f32>()
+        .sum::<f32>();
+    (unscheduled_count, priority_penalty)
 };
 
 // Improve with restarts and noise using builder pattern
