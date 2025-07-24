@@ -69,7 +69,60 @@
 
 use ndarray::Array2;
 use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
 use thiserror::Error;
+
+/// Adaptive timeout checker that measures swaps-per-second and adjusts checking frequency.
+struct TimeoutChecker {
+    timeout_duration: Duration,
+    start_time: Instant,
+    next_check: usize,
+    swaps_per_sec: Option<f64>,
+}
+
+impl TimeoutChecker {
+    fn new(timeout_duration: Duration) -> Self {
+        Self {
+            timeout_duration,
+            start_time: Instant::now(),
+            next_check: 10, // Start with 10 swaps to get initial estimate
+            swaps_per_sec: None,
+        }
+    }
+    
+    /// Check if timeout should occur. Call before every swap.
+    fn should_timeout(&mut self, swap_iter: usize) -> bool {
+        if swap_iter < self.next_check {
+            return false;
+        }
+        
+        let elapsed = self.start_time.elapsed();
+        if elapsed > self.timeout_duration {
+            return true;
+        }
+        
+        // Update swaps-per-second estimate
+        self.swaps_per_sec = Some(swap_iter as f64 / elapsed.as_secs_f64());
+        
+        // Calculate remaining time and estimated remaining swaps
+        let remaining_time = self.timeout_duration.as_secs_f64() - elapsed.as_secs_f64();
+        if let Some(sps) = self.swaps_per_sec {
+            let estimated_remaining_swaps = (sps * remaining_time).max(0.0) as usize;
+            
+            // Set next check point
+            if estimated_remaining_swaps <= 10 {
+                self.next_check = swap_iter + 1; // Single-step when close to end
+            } else {
+                self.next_check = swap_iter + (estimated_remaining_swaps / 2).max(1);
+            }
+        } else {
+            // Fallback if calculation fails
+            self.next_check = swap_iter + 100;
+        }
+        
+        false
+    }
+}
 
 /// Error type for bounds checking when accessing schedule slots.
 ///
@@ -226,6 +279,8 @@ pub struct Improver<'a, A, F> {
     max_swaps: Option<usize>,
     noise: bool,
     restarts: Option<usize>,
+    timeout: Option<Duration>,
+    proportional_restarts: bool,
 }
 
 impl<'a, A: Clone, F> Improver<'a, A, F>
@@ -239,6 +294,8 @@ where
             max_swaps: None,
             noise: false,
             restarts: None,
+            timeout: None,
+            proportional_restarts: false,
         }
     }
 
@@ -278,11 +335,12 @@ where
         self
     }
 
-    /// Set the number of restart attempts with random reshuffling.
+    /// Set the total number of improvement runs (including the initial run).
     ///
-    /// Each restart begins with a random reshuffling of the current schedule,
-    /// then runs a full improvement process. The best solution across all restarts
-    /// is returned. If not specified, no restarts are performed.
+    /// Values of 0 or 1 result in a single run with no restarts. Values ≥ 2 
+    /// perform additional restarts with random reshuffling. Each restart begins
+    /// with a random reshuffling of the current schedule, then runs a full 
+    /// improvement process. The best solution across all runs is returned.
     ///
     /// # Examples
     ///
@@ -296,12 +354,12 @@ where
         self
     }
 
-    /// Set the number of restart attempts with proportional swap division.
+    /// Set the total number of runs with proportional resource division.
     ///
     /// This method provides fair comparison between different restart strategies
-    /// by dividing the total swap budget across all restarts. For example, if
-    /// `max_swaps(1000).restarts_proportional(5)` is used, each of the 5 restarts
-    /// will get 200 swaps instead of 1000 each.
+    /// by dividing the total swap and timeout budgets across all runs. For example, if
+    /// `max_swaps(1000).restarts_proportional(5)` is used, each of the 5 runs
+    /// will get 200 swaps instead of 1000 each. Similarly for timeouts.
     ///
     /// If `max_swaps` was not explicitly set, the default budget is calculated
     /// first, then divided across restarts.
@@ -311,24 +369,33 @@ where
     /// ```rust
     /// # use time_scheduler::Schedule;
     /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
-    /// // 1000 total swaps divided across 5 restarts = 200 swaps per restart
+    /// // 1000 total swaps divided across 5 runs = 200 swaps per run
     /// schedule.improve(|_| 0.0).max_swaps(1000).restarts_proportional(5).run();
     /// ```
     pub fn restarts_proportional(mut self, restarts: usize) -> Self {
-        // Calculate total swap budget if not already set
-        if self.max_swaps.is_none() {
-            let (nplaces, ntimes) = self.schedule.slots.dim();
-            let nunscheduled = self.schedule.unscheduled.len();
-            let ntotal = nplaces * ntimes + nunscheduled;
-            self.max_swaps = Some(5 * ntotal * ntotal);
-        }
-        
-        // Divide the swap budget across restarts
-        if let Some(total_swaps) = self.max_swaps {
-            self.max_swaps = Some(total_swaps / (restarts + 1)); // +1 for initial run
-        }
-        
         self.restarts = Some(restarts);
+        self.proportional_restarts = true;
+        self
+    }
+
+    /// Set a runtime timeout for the improvement process.
+    ///
+    /// Uses an adaptive timeout checking algorithm that measures swaps-per-second
+    /// and adjusts checking frequency dynamically. Starts with 10 swaps to estimate
+    /// performance, then checks at intervals of half the estimated remaining swaps.
+    /// When within 10 swaps of completion, checks every swap for maximum accuracy.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use time_scheduler::Schedule;
+    /// # use std::time::Duration;
+    /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
+    /// // Limit improvement to 5 seconds maximum
+    /// schedule.improve(|_| 0.0).timeout(Duration::from_secs(5)).run();
+    /// ```
+    pub fn timeout(mut self, duration: Duration) -> Self {
+        self.timeout = Some(duration);
         self
     }
 
@@ -338,7 +405,7 @@ where
     /// The schedule will be left in the best state found during improvement.
     pub fn run(self) {
         self.schedule
-            .improve_run(self.penalty_fn, self.max_swaps, self.noise, self.restarts);
+            .improve_run(self.penalty_fn, self.max_swaps, self.noise, self.restarts, self.timeout, self.proportional_restarts);
     }
 }
 
@@ -689,26 +756,41 @@ impl<A: Clone> Schedule<A> {
         nswaps: Option<usize>,
         noise: bool,
         restarts: Option<usize>,
+        timeout: Option<Duration>,
+        proportional_restarts: bool,
     ) where
         F: Fn(&Schedule<A>) -> f32,
     {
         let num_restarts = restarts.unwrap_or(0);
 
-        // Single run case: optimize once and return
-        if num_restarts == 0 {
-            self.improve_single(&penalty_fn, nswaps, noise);
+        // Calculate per-run resources if proportional restarts are used
+        let per_run_timeout = if proportional_restarts && timeout.is_some() && num_restarts > 1 {
+            timeout.map(|t| Duration::from_nanos(t.as_nanos() as u64 / num_restarts as u64))
+        } else {
+            timeout
+        };
+
+        let per_run_nswaps = if proportional_restarts && num_restarts > 1 {
+            nswaps.map(|n| n / num_restarts)
+        } else {
+            nswaps
+        };
+
+        // Single run case: optimize once and return (nrestarts <= 1 means no restarts)
+        if num_restarts <= 1 {
+            self.improve_single(&penalty_fn, per_run_nswaps, noise, per_run_timeout);
             return;
         }
 
         // Run first optimization and track as initial best
-        self.improve_single(&penalty_fn, nswaps, noise);
+        self.improve_single(&penalty_fn, per_run_nswaps, noise, per_run_timeout);
         let mut best_penalty = penalty_fn(self);
         let mut best_schedule = self.clone();
 
-        // Try additional restarts with reshuffling
-        for _ in 0..num_restarts {
+        // Try additional restarts with reshuffling (num_restarts - 1 since we already did the initial run)
+        for _ in 0..(num_restarts - 1) {
             self.reshuffle();
-            self.improve_single(&penalty_fn, nswaps, noise);
+            self.improve_single(&penalty_fn, per_run_nswaps, noise, per_run_timeout);
             let current_penalty = penalty_fn(self);
 
             // Update best if this restart found a better solution
@@ -722,7 +804,7 @@ impl<A: Clone> Schedule<A> {
         *self = best_schedule;
     }
 
-    fn improve_single<F>(&mut self, penalty_fn: &F, nswaps: Option<usize>, noise: bool)
+    fn improve_single<F>(&mut self, penalty_fn: &F, nswaps: Option<usize>, noise: bool, timeout: Option<Duration>)
     where
         F: Fn(&Schedule<A>) -> f32,
     {
@@ -755,8 +837,17 @@ impl<A: Clone> Schedule<A> {
         let mut best_schedule = self.clone();
         let mut penalty = best_penalty;
 
+        // Initialize timeout checker if timeout is specified
+        let mut timeout_checker = timeout.map(TimeoutChecker::new);
+
         // Main optimization loop: try up to nswaps improvements
-        for _ in 0..nswaps {
+        for swap_iter in 0..nswaps {
+            // Check for timeout
+            if let Some(ref mut checker) = timeout_checker {
+                if checker.should_timeout(swap_iter) {
+                    break;
+                }
+            }
             // Noise move: random swap that may disimprove (escape local optima)
             if noise && random_usize(0..2) == 0 {
                 let i = random_usize(0..(nplaces * ntimes)); // Always pick from scheduled slots

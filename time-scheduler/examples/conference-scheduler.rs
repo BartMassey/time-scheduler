@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use std::time::Duration;
 
 use clap::Parser;
 use ndarray::Axis;
@@ -16,7 +17,7 @@ struct Args {
     #[arg(
         short = 'r',
         long = "nrestarts",
-        help = "Number of restarts (0 = no restarts)"
+        help = "Total number of runs (0-1 = single run, 2+ = with restarts)"
     )]
     restarts: Option<usize>,
     #[arg(
@@ -25,6 +26,12 @@ struct Args {
         help = "Divide total swap budget across restarts for fair comparison"
     )]
     proportional: bool,
+    #[arg(
+        short = 't',
+        long = "timeout",
+        help = "Runtime timeout in seconds"
+    )]
+    timeout: Option<u64>,
     #[arg(help = "JSON file containing problem instances")]
     instances_file: String,
 }
@@ -118,6 +125,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 improver = improver.restarts(restarts);
             }
+        }
+        if let Some(timeout_secs) = args.timeout {
+            improver = improver.timeout(Duration::from_secs(timeout_secs));
         }
         improver.run();
 
