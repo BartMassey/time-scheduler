@@ -45,12 +45,14 @@
 //!     instance.activities.into_iter(),
 //! );
 //!
-//! // Improve the schedule with a penalty function
+//! // Improve the schedule with a penalty function returning (unscheduled_count, other_penalty)
 //! schedule.improve(|schedule: &Schedule<Activity>| {
-//!     // Calculate penalty based on unscheduled activities, conflicts, etc.
-//!     schedule.get_unscheduled_activities()
+//!     let unscheduled_count = schedule.get_unscheduled_activities().count() 
+//!                           + schedule.empty_slots_count();
+//!     let priority_penalty = schedule.get_unscheduled_activities()
 //!         .map(|a| a.priority as f32)
-//!         .sum::<f32>()
+//!         .sum::<f32>();
+//!     (unscheduled_count, priority_penalty)
 //! }).with_noise().restarts(5).run();
 //! ```
 //!
@@ -264,10 +266,10 @@ pub struct Schedule<A> {
 /// let mut schedule = Schedule::new(3, 5, vec![Task { priority: 10 }].into_iter());
 ///
 /// // Simple improvement with defaults
-/// schedule.improve(|s: &Schedule<Task>| s.empty_slots_count() as f32).run();
+/// schedule.improve(|s: &Schedule<Task>| (s.empty_slots_count(), 0.0f32)).run();
 ///
 /// // Customized improvement
-/// schedule.improve(|s: &Schedule<Task>| s.empty_slots_count() as f32)
+/// schedule.improve(|s: &Schedule<Task>| (s.empty_slots_count(), 0.0f32))
 ///     .max_swaps(5000)
 ///     .with_noise()
 ///     .restarts(10)
@@ -311,7 +313,7 @@ where
     /// ```rust
     /// # use time_scheduler::Schedule;
     /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
-    /// schedule.improve(|_| 0.0).max_swaps(1000).run();
+    /// schedule.improve(|_| (0usize, 0.0f32)).max_swaps(1000).run();
     /// ```
     pub fn max_swaps(mut self, max_swaps: usize) -> Self {
         self.max_swaps = Some(max_swaps);
@@ -329,7 +331,7 @@ where
     /// ```rust
     /// # use time_scheduler::Schedule;
     /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
-    /// schedule.improve(|_| 0.0).with_noise().run();
+    /// schedule.improve(|_| (0usize, 0.0f32)).with_noise().run();
     /// ```
     pub fn with_noise(mut self) -> Self {
         self.noise = true;
@@ -348,7 +350,7 @@ where
     /// ```rust
     /// # use time_scheduler::Schedule;
     /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
-    /// schedule.improve(|_| 0.0).restarts(5).run();
+    /// schedule.improve(|_| (0usize, 0.0f32)).restarts(5).run();
     /// ```
     pub fn restarts(mut self, restarts: usize) -> Self {
         self.restarts = Some(restarts);
@@ -371,7 +373,7 @@ where
     /// # use time_scheduler::Schedule;
     /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
     /// // 1000 total swaps divided across 5 runs = 200 swaps per run
-    /// schedule.improve(|_| 0.0).max_swaps(1000).restarts_proportional(5).run();
+    /// schedule.improve(|_| (0usize, 0.0f32)).max_swaps(1000).restarts_proportional(5).run();
     /// ```
     pub fn restarts_proportional(mut self, restarts: usize) -> Self {
         self.restarts = Some(restarts);
@@ -393,7 +395,7 @@ where
     /// # use std::time::Duration;
     /// # let mut schedule = Schedule::new(2, 2, std::iter::empty::<i32>());
     /// // Limit improvement to 5 seconds maximum
-    /// schedule.improve(|_| 0.0).timeout(Duration::from_secs(5)).run();
+    /// schedule.improve(|_| (0usize, 0.0f32)).timeout(Duration::from_secs(5)).run();
     /// ```
     pub fn timeout(mut self, duration: Duration) -> Self {
         self.timeout = Some(duration);
@@ -679,12 +681,16 @@ impl<A: Clone> Schedule<A> {
     ///
     /// // Simple improvement
     /// schedule.improve(|s: &Schedule<Meeting>| {
-    ///     s.get_unscheduled_activities().map(|m| m.priority as f32).sum::<f32>()
+    ///     let unscheduled_count = s.get_unscheduled_activities().count() + s.empty_slots_count();
+    ///     let priority_penalty = s.get_unscheduled_activities().map(|m| m.priority as f32).sum::<f32>();
+    ///     (unscheduled_count, priority_penalty)
     /// }).run();
     ///
     /// // With custom parameters
     /// schedule.improve(|s: &Schedule<Meeting>| {
-    ///     s.get_unscheduled_activities().map(|m| m.priority as f32).sum::<f32>()
+    ///     let unscheduled_count = s.get_unscheduled_activities().count() + s.empty_slots_count();
+    ///     let priority_penalty = s.get_unscheduled_activities().map(|m| m.priority as f32).sum::<f32>();
+    ///     (unscheduled_count, priority_penalty)
     /// }).max_swaps(2000).with_noise().restarts(3).run();
     /// ```
     pub fn improve<F, P>(&mut self, penalty_fn: F) -> Improver<A, F>
@@ -738,15 +744,15 @@ impl<A: Clone> Schedule<A> {
     ///
     /// let mut schedule = Schedule::new(2, 2, meetings.into_iter());
     ///
-    /// // Define penalty function that penalizes unscheduled high-priority meetings
+    /// // Define penalty function returning (unscheduled_count, other_penalty)
     /// let penalty_fn = |schedule: &Schedule<Meeting>| {
-    ///     let unscheduled_penalty: f32 = schedule.get_unscheduled_activities()
+    ///     let unscheduled_count = schedule.get_unscheduled_activities().count() 
+    ///                           + schedule.empty_slots_count();
+    ///     let priority_penalty: f32 = schedule.get_unscheduled_activities()
     ///         .map(|m| m.priority as f32)
     ///         .sum();
     ///     
-    ///     let empty_slots_penalty = schedule.empty_slots_count() as f32 * 100.0;
-    ///     
-    ///     unscheduled_penalty + empty_slots_penalty
+    ///     (unscheduled_count, priority_penalty)
     /// };
     ///
     /// // Improve with 5 restarts and noise
